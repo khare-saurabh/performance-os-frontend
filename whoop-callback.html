@@ -140,6 +140,11 @@
         await saveSetting(db, 'whoop_expires_at',    expiresAt);
         await saveSetting(db, 'whoop_connected',     true);
 
+        // ALSO save to localStorage so main app can detect connection on load
+        localStorage.setItem('whoop_access_token', accessToken);
+        if(refreshToken) localStorage.setItem('whoop_refresh_token', refreshToken);
+        localStorage.setItem('whoop_expires_at', expiresAt);
+
         // Also store last sync timestamp
         localStorage.setItem('whoop_last_sync', new Date().toISOString());
 

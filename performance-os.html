@@ -227,27 +227,11 @@ async function loadAllData() {
   const gd = await dbGet('garmin_data');
   if(gd.length) { STATE.garmin.data = gd; STATE.garmin.connected = true; }
 
-  // Check if Whoop tokens were saved by the callback page
-  const whoopConnected = await getSettingFromDB('whoop_connected');
-  const whoopToken = await getSettingFromDB('whoop_access_token');
-  if(whoopToken || whoopConnected) {
+  // Check if Whoop tokens were saved by the callback page (stored in localStorage)
+  const whoopToken = localStorage.getItem('whoop_access_token');
+  if(whoopToken) {
     STATE.whoop.connected = true;
-    // Mirror tokens to localStorage for syncWhoop() to use
-    const token = await getSettingFromDB('whoop_access_token');
-    const refresh = await getSettingFromDB('whoop_refresh_token');
-    if(token) localStorage.setItem('whoop_access_token', token);
-    if(refresh) localStorage.setItem('whoop_refresh_token', refresh);
   }
-}
-
-async function getSettingFromDB(key) {
-  return new Promise(resolve => {
-    try {
-      const req = db.transaction('settings','readonly').objectStore('settings').get(key);
-      req.onsuccess = () => resolve(req.result ? req.result.value : null);
-      req.onerror = () => resolve(null);
-    } catch(e) { resolve(null); }
-  });
 }
 
 async function seedIfEmpty() {
@@ -976,9 +960,7 @@ function connectWhoop(){
 }
 
 async function syncWhoop(){
-  let token = localStorage.getItem('whoop_access_token');
-  // Fallback: read from IndexedDB (saved by callback page)
-  if(!token) token = await getSettingFromDB('whoop_access_token');
+  const token = localStorage.getItem('whoop_access_token');
   const backendUrl = localStorage.getItem('pos_backend_url');
   if(!token||!backendUrl){renderWhoop(document.getElementById('tab-content'));return;}
 
