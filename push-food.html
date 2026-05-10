@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log Today's Food</title>
+<style>
+  body { background:#080808; color:#e0e0e0; font-family:-apple-system,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; padding:20px; box-sizing:border-box; }
+  .card { background:#0c0c0c; border:1px solid #1a1a1a; border-radius:16px; padding:28px; max-width:480px; width:100%; }
+  h2 { font-size:16px; color:#00ff88; margin:0 0 4px; letter-spacing:1px; }
+  .sub { font-size:12px; color:#444; margin-bottom:24px; }
+  .meal { background:rgba(255,255,255,0.03); border:1px solid #111; border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  .meal-name { font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:4px; }
+  .meal-items { font-size:12px; color:#666; line-height:1.5; margin-bottom:6px; }
+  .macros { display:flex; gap:12px; font-size:11px; font-family:monospace; }
+  .p { color:#00ff88; } .k { color:#ff9500; }
+  button { width:100%; background:#00ff88; color:#000; border:none; border-radius:10px; padding:14px; font-size:14px; font-weight:700; cursor:pointer; margin-top:8px; font-family:inherit; }
+  button:disabled { background:#1a1a1a; color:#333; cursor:default; }
+  #status { margin-top:16px; font-size:13px; text-align:center; min-height:20px; }
+  .total { background:rgba(0,255,136,0.05); border:1px solid rgba(0,255,136,0.12); border-radius:10px; padding:12px 14px; margin-bottom:16px; display:flex; justify-content:space-between; }
+  .total-label { font-size:11px; color:#555; margin-bottom:3px; }
+  .total-val { font-size:18px; font-family:monospace; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>PERFORMANCE OS</h2>
+  <div class="sub">Food log · Sunday 10 May 2026</div>
+
+  <div class="total">
+    <div><div class="total-label">Total Protein</div><div class="total-val" style="color:#00ff88">159g</div></div>
+    <div><div class="total-label">Total Calories</div><div class="total-val" style="color:#ff9500">1,565 kcal</div></div>
+    <div><div class="total-label">vs Target</div><div class="total-val" style="color:#b388ff">140g / 1,450</div></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-name" style="color:#ffd43b">Breakfast</div>
+    <div class="meal-items">Goodness Shake RTD (lactose-free)</div>
+    <div class="macros"><span class="p">P 35g</span><span class="k">230 kcal</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-name" style="color:#ff9500">Lunch — The Park</div>
+    <div class="meal-items">Tuna tartare (shared, less than half) · Pan-roasted sea trout (full) · Monkey bread (¼ of shared) · Chicken pot pie filling bite · Eggs benedict small bite · Key lime pie bite · Chocolate cake bite · Apple pie bite · Green chilli paloma · Sparkling water</div>
+    <div class="macros"><span class="p">P 66g</span><span class="k">815 kcal</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-name" style="color:#ff6b6b">Dinner — Ariana 2</div>
+    <div class="meal-items">Mixed kebab (lamb shish + chicken + kofte) + salad — no rice</div>
+    <div class="macros"><span class="p">P 58g</span><span class="k">520 kcal</span></div>
+  </div>
+
+  <button id="btn" onclick="pushFood()">Push to Performance OS</button>
+  <div id="status"></div>
+</div>
+
+<script>
+const BACKEND = 'https://performance-os-backend-production.up.railway.app';
+const API_KEY = 'anything';
+const TODAY = '2026-05-10';
+
+const entries = [
+  {
+    date: TODAY, meal: 'breakfast',
+    items: 'Goodness Shake RTD (lactose-free, 35g protein)',
+    protein: 35, calories: 230,
+    notes: 'Pre-lunch bridge shake'
+  },
+  {
+    date: TODAY, meal: 'lunch',
+    items: 'Tuna tartare (shared, less than half) · Pan-roasted sea trout (full) · Monkey bread (¼ of shared portion) · Chicken pot pie filling bite (no pastry) · Eggs benedict small bite · Key lime pie small bite · Chocolate cake small bite · Apple pie small bite · Green chilli paloma · Sparkling water — The Park, Queensway',
+    protein: 66, calories: 815,
+    notes: 'The Park restaurant Sunday brunch. Dessert bites only — very small portions.'
+  },
+  {
+    date: TODAY, meal: 'dinner',
+    items: 'Mixed kebab (lamb shish + chicken + kofte) + salad — no rice — Ariana 2',
+    protein: 58, calories: 520,
+    notes: 'Ariana 2. Skipped rice.'
+  }
+];
+
+async function pushFood() {
+  const btn = document.getElementById('btn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Pushing...';
+  status.style.color = '#555';
+  status.textContent = 'Connecting to Railway...';
+
+  try {
+    const res = await fetch(`${BACKEND}/food/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries, apiKey: API_KEY })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    status.style.color = '#00ff88';
+    status.innerHTML = `✓ ${data.added.length} meals pushed to Performance OS<br><span style="color:#444;font-size:11px">Open the app to sync — it auto-pulls on load</span>`;
+    btn.textContent = '✓ Done';
+    btn.style.background = 'rgba(0,255,136,0.15)';
+    btn.style.color = '#00ff88';
+    btn.style.border = '1px solid rgba(0,255,136,0.3)';
+
+  } catch(err) {
+    status.style.color = '#ff4444';
+    status.textContent = '✗ Error: ' + err.message;
+    btn.disabled = false;
+    btn.textContent = 'Retry';
+  }
+}
+</script>
+</body>
+</html>
