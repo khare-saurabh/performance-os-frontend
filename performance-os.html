@@ -226,6 +226,28 @@ async function loadAllData() {
   if(wd.length) { STATE.whoop.data = wd; STATE.whoop.connected = true; }
   const gd = await dbGet('garmin_data');
   if(gd.length) { STATE.garmin.data = gd; STATE.garmin.connected = true; }
+
+  // Check if Whoop tokens were saved by the callback page
+  const whoopConnected = await getSettingFromDB('whoop_connected');
+  const whoopToken = await getSettingFromDB('whoop_access_token');
+  if(whoopToken || whoopConnected) {
+    STATE.whoop.connected = true;
+    // Mirror tokens to localStorage for syncWhoop() to use
+    const token = await getSettingFromDB('whoop_access_token');
+    const refresh = await getSettingFromDB('whoop_refresh_token');
+    if(token) localStorage.setItem('whoop_access_token', token);
+    if(refresh) localStorage.setItem('whoop_refresh_token', refresh);
+  }
+}
+
+async function getSettingFromDB(key) {
+  return new Promise(resolve => {
+    try {
+      const req = db.transaction('settings','readonly').objectStore('settings').get(key);
+      req.onsuccess = () => resolve(req.result ? req.result.value : null);
+      req.onerror = () => resolve(null);
+    } catch(e) { resolve(null); }
+  });
 }
 
 async function seedIfEmpty() {
@@ -556,126 +578,9 @@ function drawSparklines(tab){
 
 function renderOverview(el){
   const s=getSorted(),latest=getLatest();
-  const today=new Date().toISOString().split('T')[0];
-  const todayEntry=s.find(e=>e.date===today)||s[s.length-1]||{};
-  const todayFood=STATE.food.filter(f=>f.date===today);
-  const todayProtein=todayFood.reduce((a,f)=>a+(f.protein||0),0);
-  const todayKcal=todayFood.reduce((a,f)=>a+(f.calories||0),0);
-  const isRestDay=!todayEntry.volume&&todayEntry.sessionType==='Rest'||!todayEntry.volume;
-  const proteinTarget=isRestDay?140:162;
-  const kcalTarget=isRestDay?1450:1700;
-  const proteinPct=Math.min(100,Math.round((todayProtein/proteinTarget)*100));
-  const kcalPct=Math.min(100,Math.round((todayKcal/kcalTarget)*100));
-
-  // Trend calcs
-  const inbodyFirst=INBODY_HISTORY[0],inbodyLast=INBODY_HISTORY[INBODY_HISTORY.length-1];
-  const bfDrop=(inbodyFirst.bf-inbodyLast.bf).toFixed(1);
-  const weightDrop=(inbodyFirst.weight-inbodyLast.weight).toFixed(1);
-  const muscleChange=((inbodyLast.muscle-inbodyFirst.muscle)>=0?'+':'')+((inbodyLast.muscle-inbodyFirst.muscle).toFixed(1));
-  const allWeights=s.filter(e=>e.weight!=null).map(e=>e.weight);
-  const bestWeight=allWeights.length?Math.min(...allWeights):'—';
-  const week2=s.filter(e=>e.date>='2026-05-12'&&e.sessionType!=='Rest');
-  const weekVol=week2.length?week2.reduce((a,e)=>a+(e.volume||0),0):s.filter(e=>e.date>='2026-05-05'&&e.sessionType!=='Rest').reduce((a,e)=>a+(e.volume||0),0);
-  const weekLabel=week2.length?'Block 2 · Wk 2':'Block 2 · Wk 1 Complete';
-  const weekSessions=week2.length?week2:s.filter(e=>e.date>='2026-05-05'&&e.sessionType!=='Rest');
-
+  const week1=s.filter(e=>e.date>='2026-05-05'&&e.sessionType!=='Rest');
+  const weekVol=week1.reduce((a,e)=>a+(e.volume||0),0);
   el.innerHTML=`
-    <!-- TODAY SUMMARY -->
-    <div style="font-size:9px;letter-spacing:2px;color:#00ff88;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-      <span>Today · ${today}</span>
-      <span style="color:#333">${todayEntry.sessionType||'Rest Day'} · ${isRestDay?'Rest':'Training'}</span>
-    </div>
-
-    <!-- Today biometrics row -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px" class="stat-grid-4">
-      <div style="background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.12);border-radius:10px;padding:12px 14px">
-        <div class="label">Weight</div>
-        <div class="mono" style="font-size:20px;color:#00ff88;font-weight:300">${getVal('weight')??'—'}<span style="font-size:10px;color:#444;margin-left:2px">kg</span></div>
-        <div style="font-size:9px;color:#333;margin-top:2px">Target ≤66.2</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px">
-        <div class="label">Recovery</div>
-        <div class="mono" style="font-size:20px;color:#b388ff;font-weight:300">${todayEntry.recovery??getVal('recovery')??'—'}<span style="font-size:10px;color:#444;margin-left:2px">%</span></div>
-        <div style="font-size:9px;color:#333;margin-top:2px">Whoop</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px">
-        <div class="label">HRV</div>
-        <div class="mono" style="font-size:20px;color:#00d4ff;font-weight:300">${todayEntry.hrv??getVal('hrv')??'—'}<span style="font-size:10px;color:#444;margin-left:2px">ms</span></div>
-        <div style="font-size:9px;color:#333;margin-top:2px">On wake</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px">
-        <div class="label">RHR</div>
-        <div class="mono" style="font-size:20px;color:#ff9500;font-weight:300">${todayEntry.rhr??getVal('rhr')??'—'}<span style="font-size:10px;color:#444;margin-left:2px">bpm</span></div>
-        <div style="font-size:9px;color:#333;margin-top:2px">Resting</div>
-      </div>
-    </div>
-
-    <!-- Today nutrition -->
-    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 16px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div class="label" style="margin:0">Today's Nutrition</div>
-        <button onclick="document.getElementById('add-food-modal').style.display='flex'" style="background:none;border:1px solid #1a1a1a;color:#444;border-radius:6px;padding:3px 10px;font-size:10px;cursor:pointer;font-family:inherit">+ Log</button>
-      </div>
-      <div style="display:flex;gap:16px;margin-bottom:8px">
-        <div style="flex:1">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:11px;color:#888">Protein</span>
-            <span class="mono" style="font-size:11px;color:${todayProtein>=proteinTarget?'#00ff88':todayProtein>=proteinTarget*0.7?'#ff9500':'#ff4444'}">${todayProtein}g / ${proteinTarget}g</span>
-          </div>
-          <div style="background:#111;border-radius:99px;height:5px"><div style="width:${proteinPct}%;height:100%;background:#00ff88;border-radius:99px;transition:width 0.5s"></div></div>
-        </div>
-        <div style="flex:1">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:11px;color:#888">Calories</span>
-            <span class="mono" style="font-size:11px;color:#888">${todayKcal} / ${kcalTarget}</span>
-          </div>
-          <div style="background:#111;border-radius:99px;height:5px"><div style="width:${kcalPct}%;height:100%;background:#ff9500;border-radius:99px;transition:width 0.5s"></div></div>
-        </div>
-      </div>
-      ${todayFood.length>0?`<div style="display:flex;gap:6px;flex-wrap:wrap">${todayFood.map(f=>`<div style="background:rgba(255,255,255,0.03);border:1px solid #111;border-radius:6px;padding:3px 8px;font-size:10px;color:#555">${f.meal} · ${f.protein||0}g</div>`).join('')}</div>`:`<div style="font-size:10px;color:#2a2a2a">No food logged today</div>`}
-    </div>
-
-    <!-- Today session -->
-    ${todayEntry.volume?`<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 16px;margin-bottom:10px">
-      <div class="label" style="margin-bottom:8px">Today's Session · ${todayEntry.sessionType}</div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap">
-        ${todayEntry.volume?`<div><span style="font-size:9px;color:#555">Volume</span><div class="mono" style="font-size:16px;color:#ff6b6b">${todayEntry.volume.toLocaleString()}kg</div></div>`:''}
-        ${todayEntry.sessionCalories?`<div><span style="font-size:9px;color:#555">Burn</span><div class="mono" style="font-size:16px;color:#ffd43b">${todayEntry.sessionCalories}kcal</div></div>`:''}
-        ${todayEntry.load?`<div><span style="font-size:9px;color:#555">Load</span><div class="mono" style="font-size:16px;color:#888">${todayEntry.load}</div></div>`:''}
-      </div>
-      ${todayEntry.notes?`<div style="font-size:11px;color:#444;margin-top:8px;line-height:1.5">${todayEntry.notes}</div>`:''}
-    </div>`:`<div style="background:rgba(255,255,255,0.015);border:1px solid #111;border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:12px;color:#333">Rest Day</div>
-      <div style="font-size:10px;color:#1e1e1e">Block 2 · Week 2 · Day 1 Rings tomorrow</div>
-    </div>`}
-
-    <!-- DIVIDER -->
-    <div style="display:flex;align-items:center;gap:10px;margin:18px 0 14px">
-      <div style="height:1px;flex:1;background:#111"></div>
-      <div style="font-size:9px;letter-spacing:2px;color:#222;text-transform:uppercase">Overall Trend</div>
-      <div style="height:1px;flex:1;background:#111"></div>
-    </div>
-
-    <!-- Trend headline stats -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
-      <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.12);border-radius:10px;padding:12px 14px;text-align:center">
-        <div class="label">BF Drop</div>
-        <div class="mono" style="font-size:22px;color:#ff6b6b">−${bfDrop}<span style="font-size:10px;color:#444;margin-left:2px">%</span></div>
-        <div style="font-size:9px;color:#333">${inbodyFirst.bf}% → ${inbodyLast.bf}%</div>
-      </div>
-      <div style="background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.12);border-radius:10px;padding:12px 14px;text-align:center">
-        <div class="label">Muscle</div>
-        <div class="mono" style="font-size:22px;color:#00ff88">${muscleChange}<span style="font-size:10px;color:#444;margin-left:2px">kg</span></div>
-        <div style="font-size:9px;color:#333">${inbodyFirst.muscle} → ${inbodyLast.muscle}kg</div>
-      </div>
-      <div style="background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.12);border-radius:10px;padding:12px 14px;text-align:center">
-        <div class="label">Best Weight</div>
-        <div class="mono" style="font-size:22px;color:#00d4ff">${bestWeight}<span style="font-size:10px;color:#444;margin-left:2px">kg</span></div>
-        <div style="font-size:9px;color:#333">Programme low</div>
-      </div>
-    </div>
-
-    <!-- Trend sparklines -->
     <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:8px">Biometrics · tap to expand</div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px" class="stat-grid-4">
       ${miniCard('weight','Weight',getVal('weight'),'kg','#00ff88','65.5kg')}
@@ -690,24 +595,26 @@ function renderOverview(el){
       ${miniCard('volume','Session Volume',getVal('volume'),'kg','#ff6b6b','','bar')}
       ${miniCard('sessionCalories','Session Burn',getVal('sessionCalories'),'kcal','#ffd43b','','bar')}
     </div>
-
-    <!-- Current block -->
     <div style="background:rgba(0,255,136,0.025);border:1px solid rgba(0,255,136,0.07);border-radius:12px;padding:18px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="label" style="color:#00ff88;margin:0">${weekLabel}</div>
+        <div class="label" style="color:#00ff88;margin:0">Block 2 · Week 1 Complete</div>
         <div style="display:flex;gap:16px;font-size:10px">
           <span style="color:#555">Vol <span class="mono" style="color:#00ff88">${weekVol.toLocaleString()}kg</span></span>
           <span style="color:#555">InBody <span class="mono" style="color:#00d4ff">88/100</span></span>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-        ${weekSessions.map(s=>`<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px 12px;border-top:2px solid ${SESSION_COLORS[s.sessionType]||'#333'}">
+        ${week1.map(s=>`<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px 12px;border-top:2px solid ${SESSION_COLORS[s.sessionType]||'#333'}">
           <div style="font-size:9px;color:${SESSION_COLORS[s.sessionType]};letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">${s.sessionType}</div>
           <div style="font-size:9px;color:#333;margin-bottom:3px">${s.date.slice(5)}</div>
           ${s.volume?`<div class="mono" style="font-size:13px">${s.volume.toLocaleString()}<span style="font-size:8px;color:#444;margin-left:1px">kg</span></div>`:''}
         </div>`).join('')}
       </div>
-    </div>`;
+    </div>
+    ${latest.notes?`<div style="background:rgba(255,255,255,0.015);border:1px solid #101010;border-radius:10px;padding:12px 14px">
+      <div class="label">Latest · ${latest.date}</div>
+      <div style="font-size:12px;color:#444;line-height:1.6">${latest.notes}</div>
+    </div>`:''}`;
 }
 
 function renderTraining(el){
@@ -977,29 +884,17 @@ const BACKEND = localStorage.getItem('pos_backend_url') || '';
 function renderWhoop(el){
   const connected = STATE.whoop.connected;
   const lastSync = localStorage.getItem('whoop_last_sync');
-  const sortedData = [...STATE.whoop.data].sort((a,b)=>a.date<b.date?-1:1);
-  const latest = sortedData.length ? sortedData[sortedData.length-1] : null;
-  const today = new Date().toISOString().split('T')[0];
-
-  // Use entries as fallback for today's recovery/HRV if whoop not connected
-  const todayEntry = getSorted().find(e=>e.date===today)||{};
-
-  const todayRecovery = latest?.date===today ? latest.recovery_score : (todayEntry.recovery??null);
-  const todayHrv = latest?.date===today ? latest.hrv_rmssd_on_wake : (todayEntry.hrv??null);
-  const todayRhr = latest?.date===today ? latest.resting_heart_rate : (todayEntry.rhr??null);
-  const todaySleep = latest?.date===today ? latest.sleep_duration_hours : null;
-
-  const recoveryColor = todayRecovery>=67?'#00ff88':todayRecovery>=34?'#ff9500':'#ff4444';
+  const data = STATE.whoop.data;
+  const latest = data.length ? data[data.length-1] : null;
 
   el.innerHTML=`
-    <!-- Connection card -->
-    <div class="connector-card" style="border-color:${connected?'rgba(179,136,255,0.2)':'rgba(255,255,255,0.07)'};margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="connector-card" style="border-color:${connected?'rgba(0,255,136,0.2)':'rgba(255,255,255,0.07)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:10px">
           <div style="font-size:24px">⚡</div>
           <div>
             <div style="font-size:14px;font-weight:600">Whoop</div>
-            <div style="font-size:11px;color:#555">${connected?`Synced · ${lastSync?new Date(lastSync).toLocaleDateString():'—'}`:'Not connected · OAuth pending'}</div>
+            <div style="font-size:11px;color:#555">${connected?'Connected':'Not connected'}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -1011,124 +906,56 @@ function renderWhoop(el){
           }
         </div>
       </div>
-      ${!connected?`
-        <div style="margin-top:14px;border-top:1px solid #111;padding-top:14px">
-          <div class="label" style="margin-bottom:8px">Backend URL</div>
-          <div style="display:flex;gap:8px">
-            <input type="url" class="input" id="backend-url-input" placeholder="https://your-app.up.railway.app" value="${localStorage.getItem('pos_backend_url')||''}" style="flex:1">
-            <button onclick="saveBackendUrl()" class="btn-primary" style="padding:10px 14px;font-size:11px;white-space:nowrap">Save & Connect</button>
+      ${connected && lastSync ? `<div style="font-size:10px;color:#333;margin-bottom:12px">Last sync: ${new Date(lastSync).toLocaleString()}</div>` : ''}
+      ${!connected ? `
+        <div style="background:rgba(255,255,255,0.02);border-radius:10px;padding:14px;margin-top:4px">
+          <div class="label" style="margin-bottom:8px">Setup required</div>
+          <div style="font-size:11px;color:#555;line-height:1.6;margin-bottom:12px">
+            1. Make sure your Railway backend is running<br>
+            2. Enter your backend URL below<br>
+            3. Tap Connect — you'll be redirected to Whoop to authorise
           </div>
-          <div style="font-size:10px;color:#333;margin-top:8px">Railway backend: performance-os-backend-production.up.railway.app</div>
+          <label class="label">Backend URL</label>
+          <input type="url" class="input" id="backend-url-input" placeholder="https://your-app.up.railway.app" value="${BACKEND}" style="margin-bottom:10px">
+          <button onclick="saveBackendUrl()" class="btn-primary" style="width:100%;padding:10px 0">Save & Connect Whoop</button>
         </div>` : ''}
     </div>
 
-    <!-- TODAY -->
-    <div style="font-size:9px;letter-spacing:2px;color:#b388ff;text-transform:uppercase;margin-bottom:10px">Today · ${today}</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px" class="stat-grid-4">
+    ${connected && latest ? `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" class="stat-grid-4">
       ${[
-        {l:'Recovery',v:todayRecovery??'—',u:'%',c:todayRecovery!=null?recoveryColor:'#444'},
-        {l:'HRV',v:todayHrv??'—',u:'ms',c:'#00d4ff'},
-        {l:'RHR',v:todayRhr??'—',u:'bpm',c:'#ff9500'},
-        {l:'Sleep',v:todaySleep??'11',u:'hrs',c:'#69db7c'},
-        {l:'Strain',v:latest?.strain??'—',u:'',c:'#ff6b6b'},
-        {l:'Sleep Score',v:latest?.sleep_score??'—',u:'%',c:'#b388ff'},
-      ].map(({l,v,u,c})=>`<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden">
+        {l:'Recovery',v:latest.recovery_score,u:'%',c:'#b388ff'},
+        {l:'HRV',v:latest.hrv_rmssd_on_wake,u:'ms',c:'#00d4ff'},
+        {l:'RHR',v:latest.resting_heart_rate,u:'bpm',c:'#ff9500'},
+        {l:'Sleep Score',v:latest.sleep_score,u:'%',c:'#69db7c'},
+        {l:'Sleep Duration',v:latest.sleep_duration_hours,u:'hrs',c:'#00d4ff'},
+        {l:'Strain',v:latest.strain,u:'',c:'#ff6b6b'},
+      ].map(({l,v,u,c})=>`<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${c},transparent)"></div>
         <div class="label">${l}</div>
-        <div class="mono" style="font-size:20px;color:${c};font-weight:300">${v}<span style="font-size:10px;color:#444;margin-left:2px">${u}</span></div>
+        <div class="mono" style="font-size:22px;color:${c};font-weight:300">${v??'—'}<span style="font-size:10px;color:#444;margin-left:2px">${u}</span></div>
       </div>`).join('')}
-    </div>
+    </div>` : ''}
 
-    <!-- HISTORY CHARTS (shown whether connected or not — uses entry data) -->
-    <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:10px">Recovery History</div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="label" style="margin-bottom:8px">Recovery Score — All Time</div>
-      <canvas id="whoop_recovery_chart" width="600" height="130" style="width:100%;height:auto"></canvas>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-      <div class="card">
-        <div class="label" style="margin-bottom:8px">HRV (ms)</div>
-        <canvas id="whoop_hrv_chart" width="280" height="100" style="width:100%;height:auto"></canvas>
-      </div>
-      <div class="card">
-        <div class="label" style="margin-bottom:8px">Resting HR</div>
-        <canvas id="whoop_rhr_chart" width="280" height="100" style="width:100%;height:auto"></canvas>
-      </div>
-    </div>
-
-    <!-- Data table -->
-    ${connected && sortedData.length > 0 ? `
+    ${connected && data.length > 0 ? `
     <div class="card" style="padding:0;overflow:hidden">
       <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f;display:flex;justify-content:space-between;align-items:center">
-        <div class="label">Whoop Records</div>
-        <span style="font-size:10px;color:#444">${sortedData.length} days</span>
+        <div class="label">Raw Whoop Data</div>
+        <span style="font-size:10px;color:#444">${data.length} records</span>
       </div>
-      <div style="max-height:320px;overflow-y:auto">
-        ${[...sortedData].reverse().slice(0,30).map(d=>`<div style="padding:10px 16px;border-bottom:1px solid #0a0a0a;display:flex;justify-content:space-between;align-items:center">
-          <span class="mono" style="color:#333;font-size:10px">${d.date||d.created_at?.slice(0,10)||'—'}</span>
-          <div style="display:flex;gap:10px">
-            ${d.recovery_score!=null?`<span class="mono" style="color:${d.recovery_score>=67?'#00ff88':d.recovery_score>=34?'#ff9500':'#ff4444'};font-size:11px">R:${d.recovery_score}%</span>`:''}
-            ${d.hrv_rmssd_on_wake!=null?`<span class="mono" style="color:#00d4ff;font-size:11px">HRV:${Math.round(d.hrv_rmssd_on_wake)}</span>`:''}
+      <div style="max-height:400px;overflow-y:auto">
+        ${[...data].reverse().slice(0,20).map(d=>`<div class="import-row" style="padding:10px 16px">
+          <span class="mono" style="color:#444;font-size:10px">${d.date||d.created_at?.slice(0,10)||'—'}</span>
+          <div style="display:flex;gap:12px">
+            ${d.recovery_score!=null?`<span class="mono" style="color:#b388ff;font-size:11px">R:${d.recovery_score}%</span>`:''}
+            ${d.hrv_rmssd_on_wake!=null?`<span class="mono" style="color:#00d4ff;font-size:11px">HRV:${d.hrv_rmssd_on_wake}</span>`:''}
             ${d.resting_heart_rate!=null?`<span class="mono" style="color:#ff9500;font-size:11px">RHR:${d.resting_heart_rate}</span>`:''}
-            ${d.sleep_duration_hours!=null?`<span class="mono" style="color:#69db7c;font-size:11px">${d.sleep_duration_hours}h</span>`:''}
+            ${d.strain!=null?`<span class="mono" style="color:#ff6b6b;font-size:11px">S:${d.strain}</span>`:''}
           </div>
         </div>`).join('')}
       </div>
-    </div>` : !connected ? `
-    <div style="background:rgba(179,136,255,0.04);border:1px solid rgba(179,136,255,0.12);border-radius:12px;padding:16px;text-align:center">
-      <div style="font-size:12px;color:#555;margin-bottom:8px">Connect Whoop to see live recovery data</div>
-      <div style="font-size:10px;color:#333">Charts above show HRV/RHR from manually logged entries</div>
-    </div>` : `<div style="text-align:center;color:#333;padding:30px;font-size:12px">No data yet — tap Sync</div>`}
+    </div>` : connected ? `<div style="text-align:center;color:#333;padding:40px;font-size:12px">No data yet — tap Sync to fetch from Whoop</div>` : ''}
   `;
-
-  // Draw charts using entry data (available whether whoop connected or not)
-  requestAnimationFrame(()=>{
-    const entries = getSorted();
-    const recovData = entries.filter(e=>e.recovery!=null);
-    const hrvData = entries.filter(e=>e.hrv!=null);
-    const rhrData = entries.filter(e=>e.rhr!=null);
-
-    // Merge whoop data if available
-    const allRecov = connected && sortedData.length ? sortedData.filter(d=>d.recovery_score!=null).map(d=>({date:d.date,v:d.recovery_score})) : recovData.map(d=>({date:d.date,v:d.recovery}));
-    const allHrv = connected && sortedData.length ? sortedData.filter(d=>d.hrv_rmssd_on_wake!=null).map(d=>({date:d.date,v:Math.round(d.hrv_rmssd_on_wake)})) : hrvData.map(d=>({date:d.date,v:d.hrv}));
-    const allRhr = connected && sortedData.length ? sortedData.filter(d=>d.resting_heart_rate!=null).map(d=>({date:d.date,v:d.resting_heart_rate})) : rhrData.map(d=>({date:d.date,v:d.rhr}));
-
-    function drawLineChart(id,data,color,refLines){
-      const canvas=document.getElementById(id);if(!canvas||data.length<2)return;
-      const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height,pad=22;
-      ctx.clearRect(0,0,W,H);
-      const vals=data.map(d=>d.v),min=Math.min(...vals)-5,max=Math.max(...vals)+5,range=max-min;
-      const x=i=>pad+(i/(data.length-1))*(W-pad*2),y=v=>H-pad-((v-min)/range)*(H-pad*2);
-      // Grid
-      ctx.strokeStyle='#0f0f0f';ctx.lineWidth=1;
-      for(let i=0;i<=3;i++){const yy=pad+(i/3)*(H-pad*2);ctx.beginPath();ctx.moveTo(pad,yy);ctx.lineTo(W-pad,yy);ctx.stroke();}
-      // Ref lines
-      (refLines||[]).forEach(({v,c})=>{
-        ctx.strokeStyle=c+'40';ctx.lineWidth=1;ctx.setLineDash([4,4]);
-        ctx.beginPath();ctx.moveTo(pad,y(v));ctx.lineTo(W-pad,y(v));ctx.stroke();ctx.setLineDash([]);
-      });
-      // Fill
-      const grad=ctx.createLinearGradient(0,pad,0,H-pad);grad.addColorStop(0,color+'44');grad.addColorStop(1,color+'00');
-      ctx.beginPath();ctx.moveTo(x(0),H-pad);ctx.lineTo(x(0),y(vals[0]));
-      for(let i=1;i<vals.length;i++)ctx.lineTo(x(i),y(vals[i]));
-      ctx.lineTo(x(vals.length-1),H-pad);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
-      // Line
-      ctx.beginPath();ctx.moveTo(x(0),y(vals[0]));for(let i=1;i<vals.length;i++)ctx.lineTo(x(i),y(vals[i]));
-      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.setLineDash([]);ctx.stroke();
-      // Dots
-      vals.forEach((v,i)=>{ctx.beginPath();ctx.arc(x(i),y(v),3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();});
-      // Labels
-      ctx.fillStyle='#333';ctx.font='9px monospace';ctx.textAlign='center';
-      data.forEach((d,i)=>{if(i%(Math.ceil(data.length/5))===0)ctx.fillText(d.date.slice(5),x(i),H-5);});
-      // Y-axis values
-      ctx.textAlign='right';ctx.fillStyle='#333';
-      [min+range*0.25,min+range*0.75].forEach(v=>ctx.fillText(Math.round(v),pad-2,y(v)+3));
-    }
-
-    drawLineChart('whoop_recovery_chart',allRecov,'#b388ff',[{v:67,c:'#00ff88'},{v:34,c:'#ff9500'}]);
-    drawLineChart('whoop_hrv_chart',allHrv,'#00d4ff');
-    drawLineChart('whoop_rhr_chart',allRhr,'#ff9500');
-  });
 }
 
 function saveBackendUrl(){
@@ -1149,7 +976,9 @@ function connectWhoop(){
 }
 
 async function syncWhoop(){
-  const token = localStorage.getItem('whoop_access_token');
+  let token = localStorage.getItem('whoop_access_token');
+  // Fallback: read from IndexedDB (saved by callback page)
+  if(!token) token = await getSettingFromDB('whoop_access_token');
   const backendUrl = localStorage.getItem('pos_backend_url');
   if(!token||!backendUrl){renderWhoop(document.getElementById('tab-content'));return;}
 
@@ -1265,162 +1094,79 @@ function handleWhoopCallback(){
 function renderGarmin(el){
   const connected = STATE.garmin.connected;
   const lastSync = localStorage.getItem('garmin_last_sync');
-  const data = [...STATE.garmin.data].sort((a,b)=>a.date<b.date?-1:1);
-  const today = new Date().toISOString().split('T')[0];
-
-  // Pull today's session from entries as ground truth
-  const entries = getSorted();
-  const todayEntry = entries.find(e=>e.date===today)||entries[entries.length-1]||{};
-  const recentSessions = entries.filter(e=>e.sessionCalories||e.volume).slice(-14);
+  const data = STATE.garmin.data;
 
   el.innerHTML=`
-    <!-- Connection card -->
-    <div class="connector-card" style="border-color:${connected?'rgba(0,212,255,0.2)':'rgba(255,255,255,0.07)'};margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="connector-card" style="border-color:${connected?'rgba(0,212,255,0.2)':'rgba(255,255,255,0.07)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:10px">
           <div style="font-size:24px">⌚</div>
           <div>
             <div style="font-size:14px;font-weight:600">Garmin Connect</div>
-            <div style="font-size:11px;color:#555">${connected?`Synced · ${new Date(lastSync).toLocaleDateString()}`:'Not connected'}</div>
+            <div style="font-size:11px;color:#555">${connected?'Connected':'Not connected'}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="status-dot ${connected?'status-connected':'status-disconnected'}"></div>
           ${connected
             ? `<button onclick="syncGarmin()" class="btn-ghost" style="font-size:11px;padding:6px 12px">↻ Sync</button>`
-            : `<button onclick="document.getElementById('garmin-connect-guide').style.display='block'" class="btn-primary" style="padding:7px 16px;font-size:12px">Connect Garmin</button>`
+            : `<button onclick="showGarminSetup()" class="btn-primary" style="padding:7px 16px;font-size:12px">Setup Garmin</button>`
           }
         </div>
       </div>
+      ${connected && lastSync ? `<div style="font-size:10px;color:#333;margin-bottom:10px">Last sync: ${new Date(lastSync).toLocaleString()}</div>` : ''}
     </div>
 
-    <!-- TODAY'S SESSION -->
-    <div style="font-size:9px;letter-spacing:2px;color:#00d4ff;text-transform:uppercase;margin-bottom:10px">Today · ${today}</div>
-    ${todayEntry.sessionCalories||todayEntry.volume?`
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px" class="stat-grid-4">
-      ${[
-        {l:'Session Type',v:todayEntry.sessionType||'—',u:'',c:'#00d4ff'},
-        {l:'Volume',v:todayEntry.volume?todayEntry.volume.toLocaleString():'—',u:'kg',c:'#ff6b6b'},
-        {l:'Calories Burned',v:todayEntry.sessionCalories||'—',u:'kcal',c:'#ffd43b'},
-        {l:'Training Load',v:todayEntry.load||'—',u:'',c:'#888'},
-        {l:'Avg HR',v:todayEntry.avgHr||'104',u:'bpm',c:'#ff9500'},
-        {l:'Max HR',v:todayEntry.maxHr||'141',u:'bpm',c:'#ff6b6b'},
-      ].map(({l,v,u,c})=>`<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden">
-        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${c},transparent)"></div>
-        <div class="label">${l}</div>
-        <div class="mono" style="font-size:18px;color:${c};font-weight:300">${v}<span style="font-size:10px;color:#444;margin-left:2px">${u}</span></div>
-      </div>`).join('')}
-    </div>
-    ${todayEntry.notes?`<div style="background:rgba(255,255,255,0.02);border:1px solid #111;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:11px;color:#444;line-height:1.6">${todayEntry.notes}</div>`:''}
-    `:`<div style="background:rgba(255,255,255,0.015);border:1px solid #111;border-radius:10px;padding:14px 16px;margin-bottom:14px;text-align:center;font-size:12px;color:#333">No session logged today</div>`}
+    <div id="garmin-setup" style="display:${connected?'none':'block'}">
+      <div class="card" style="margin-bottom:14px">
+        <div class="label" style="color:#00d4ff;margin-bottom:10px">Garmin Setup — Phase 2</div>
+        <div style="font-size:12px;color:#555;line-height:1.7;margin-bottom:16px">
+          Garmin Connect requires OAuth 1.0a which needs a backend server. Your Railway backend already has the Garmin placeholder ready.<br><br>
+          <strong style="color:#888">To complete Garmin connection:</strong><br>
+          1. Register at <span style="color:#00d4ff">developer.garmin.com</span><br>
+          2. Create a Health API application<br>
+          3. Get Consumer Key + Consumer Secret<br>
+          4. Add to Railway as GARMIN_KEY and GARMIN_SECRET<br>
+          5. Return here to connect
+        </div>
+        <div style="background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.1);border-radius:10px;padding:14px">
+          <div class="label" style="margin-bottom:8px">Manual Import (available now)</div>
+          <div style="font-size:11px;color:#555;margin-bottom:10px">Export data from Garmin Connect app → paste JSON below</div>
+          <textarea class="input" id="garmin-manual-input" rows="4" placeholder="Paste Garmin export JSON here..."></textarea>
+          <button onclick="importGarminManual()" class="btn-primary" style="width:100%;margin-top:10px;padding:10px 0">Import</button>
+        </div>
+      </div>
 
-    <!-- HISTORICAL CHARTS -->
-    <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:10px">Training History</div>
-
-    <!-- Volume chart -->
-    <div class="card" style="margin-bottom:12px">
-      <div class="label" style="margin-bottom:10px">Session Volume — Last 14 Sessions</div>
-      <canvas id="garmin_vol_chart" width="600" height="140" style="width:100%;height:auto"></canvas>
-    </div>
-
-    <!-- Calories + Load chart -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
       <div class="card">
-        <div class="label" style="margin-bottom:8px">Burn (kcal)</div>
-        <canvas id="garmin_cal_chart" width="280" height="100" style="width:100%;height:auto"></canvas>
-      </div>
-      <div class="card">
-        <div class="label" style="margin-bottom:8px">Training Load</div>
-        <canvas id="garmin_load_chart" width="280" height="100" style="width:100%;height:auto"></canvas>
-      </div>
-    </div>
-
-    <!-- Session table -->
-    <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
-      <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f;display:flex;justify-content:space-between;align-items:center">
-        <div class="label">All Sessions</div>
-        <span style="font-size:10px;color:#444">${recentSessions.length} records</span>
-      </div>
-      <div style="max-height:320px;overflow-y:auto">
-        ${[...recentSessions].reverse().map(e=>`<div style="padding:10px 16px;border-bottom:1px solid #0a0a0a;display:flex;justify-content:space-between;align-items:center">
-          <div style="display:flex;gap:8px;align-items:center">
-            <div style="width:5px;height:5px;border-radius:50%;background:${SESSION_COLORS[e.sessionType]||'#333'};flex-shrink:0"></div>
-            <div>
-              <div style="font-size:12px;color:#999">${e.sessionType}</div>
-              <div class="mono" style="font-size:9px;color:#333">${e.date}</div>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;text-align:right">
-            ${e.volume?`<div><div class="mono" style="font-size:12px;color:#ff6b6b">${e.volume.toLocaleString()}</div><div style="font-size:9px;color:#333">kg</div></div>`:''}
-            ${e.sessionCalories?`<div><div class="mono" style="font-size:12px;color:#ffd43b">${e.sessionCalories}</div><div style="font-size:9px;color:#333">kcal</div></div>`:''}
-            ${e.load?`<div><div class="mono" style="font-size:12px;color:#888">${e.load}</div><div style="font-size:9px;color:#333">load</div></div>`:''}
+        <div class="label" style="margin-bottom:12px">Your Garmin Data (from our sessions)</div>
+        <div style="font-size:11px;color:#555;margin-bottom:12px">All your Garmin stats from check-ins are already loaded in the Training tab. Here's a summary:</div>
+        ${getSorted().filter(e=>e.volume||e.sessionCalories).map(e=>`<div class="import-row">
+          <span class="mono" style="color:#444;font-size:10px">${e.date}</span>
+          <span style="color:${SESSION_COLORS[e.sessionType]||'#555'};font-size:10px">${e.sessionType}</span>
+          <div style="display:flex;gap:10px">
+            ${e.volume?`<span class="mono" style="color:#ff6b6b;font-size:11px">${e.volume.toLocaleString()}kg</span>`:''}
+            ${e.sessionCalories?`<span class="mono" style="color:#ffd43b;font-size:11px">${e.sessionCalories}kcal</span>`:''}
+            ${e.load?`<span class="mono" style="color:#888;font-size:11px">L:${e.load}</span>`:''}
           </div>
         </div>`).join('')}
       </div>
     </div>
 
-    <!-- CONNECT GUIDE (hidden by default) -->
-    <div id="garmin-connect-guide" style="display:${connected?'none':'none'}">
-      <div style="background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.12);border-radius:14px;padding:20px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:600;color:#00d4ff;margin-bottom:4px">How to connect Garmin</div>
-        <div style="font-size:11px;color:#555;margin-bottom:16px">Garmin uses OAuth 1.0a via their Health API. Unlike Whoop, it requires API key approval.</div>
-        ${[
-          ['Step 1','Register at developer.garmin.com','Go to developer.garmin.com → Create account → Apply for Health API access. This requires a brief application describing your use case.'],
-          ['Step 2','Create a Health API app','Once approved, create a new application. Select "Health API" as the product. Note down your Consumer Key and Consumer Secret.'],
-          ['Step 3','Add keys to Railway','In your Railway dashboard → performance-os-backend → Variables. Add: GARMIN_KEY=your_consumer_key and GARMIN_SECRET=your_consumer_secret. Then redeploy.'],
-          ['Step 4','Connect here','Once Railway is redeployed with the keys, tap the Connect Garmin button above. You\'ll be redirected to Garmin to authorise.'],
-        ].map(([step,title,desc])=>`
-          <div style="display:flex;gap:14px;margin-bottom:14px">
-            <div style="flex-shrink:0;width:26px;height:26px;border-radius:50%;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);display:flex;align-items:center;justify-content:center;font-size:9px;color:#00d4ff;font-family:monospace">${step.split(' ')[1]}</div>
-            <div>
-              <div style="font-size:12px;color:#888;margin-bottom:3px">${title}</div>
-              <div style="font-size:11px;color:#444;line-height:1.6">${desc}</div>
-            </div>
-          </div>`).join('')}
-        <a href="https://developer.garmin.com/health-api/overview/" target="_blank" style="display:block;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);border-radius:8px;padding:10px 14px;text-align:center;font-size:12px;color:#00d4ff;text-decoration:none">Open developer.garmin.com →</a>
+    ${connected && data.length > 0 ? `
+    <div class="card" style="padding:0;overflow:hidden;margin-top:14px">
+      <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f" class="label">Garmin Activity Data</div>
+      <div style="max-height:400px;overflow-y:auto">
+        ${[...data].reverse().slice(0,20).map(d=>`<div class="import-row" style="padding:10px 16px">
+          <span class="mono" style="color:#444;font-size:10px">${d.date||'—'}</span>
+          <div style="display:flex;gap:10px">
+            ${d.volume?`<span class="mono" style="color:#ff6b6b;font-size:11px">${d.volume.toLocaleString()}kg</span>`:''}
+            ${d.calories?`<span class="mono" style="color:#ffd43b;font-size:11px">${d.calories}kcal</span>`:''}
+            ${d.avg_hr?`<span class="mono" style="color:#ff9500;font-size:11px">HR:${d.avg_hr}</span>`:''}
+          </div>
+        </div>`).join('')}
       </div>
-
-      <div style="background:rgba(0,212,255,0.025);border:1px solid rgba(0,212,255,0.07);border-radius:12px;padding:16px;margin-bottom:14px">
-        <div class="label" style="margin-bottom:10px;color:#00d4ff">Manual Import (use now while waiting for API access)</div>
-        <div style="font-size:11px;color:#555;margin-bottom:10px">Export a session from Garmin Connect app → Activities → select session → export. Paste the JSON below.</div>
-        <textarea class="input" id="garmin-manual-input" rows="4" placeholder="Paste Garmin export JSON here..."></textarea>
-        <button onclick="importGarminManual()" class="btn-primary" style="width:100%;margin-top:10px;padding:10px 0">Import Session</button>
-      </div>
-    </div>
+    </div>` : ''}
   `;
-
-  // Draw charts
-  requestAnimationFrame(()=>{
-    const volData = recentSessions.filter(e=>e.volume);
-    const calData = recentSessions.filter(e=>e.sessionCalories);
-    const loadData = recentSessions.filter(e=>e.load);
-
-    function drawBarChart(id, data, key, color){
-      const canvas=document.getElementById(id);if(!canvas||data.length<2)return;
-      const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height,pad=20;
-      ctx.clearRect(0,0,W,H);
-      const vals=data.map(d=>d[key]),max=Math.max(...vals),bw=(W-pad*2)/data.length*0.65;
-      data.forEach((d,i)=>{
-        const cx=pad+(i/(data.length-1||1))*(W-pad*2);
-        const bh=(d[key]/max)*(H-pad*2);
-        ctx.fillStyle=(SESSION_COLORS[d.sessionType]||color)+'cc';
-        ctx.beginPath();ctx.roundRect(cx-bw/2,H-pad-bh,bw,bh,2);ctx.fill();
-      });
-      ctx.fillStyle='#333';ctx.font='9px monospace';ctx.textAlign='center';
-      data.forEach((d,i)=>{if(i%(Math.ceil(data.length/5))===0){const cx=pad+(i/(data.length-1||1))*(W-pad*2);ctx.fillText(d.date.slice(5),cx,H-4);}});
-      // Value labels on top
-      ctx.fillStyle='#555';ctx.font='8px monospace';
-      data.forEach((d,i)=>{
-        const cx=pad+(i/(data.length-1||1))*(W-pad*2);
-        const bh=(d[key]/max)*(H-pad*2);
-        ctx.fillText(d[key]+(key==='volume'?'':''),(cx),(H-pad-bh-3));
-      });
-    }
-
-    drawBarChart('garmin_vol_chart',volData,'volume','#ff6b6b');
-    drawBarChart('garmin_cal_chart',calData,'sessionCalories','#ffd43b');
-    drawBarChart('garmin_load_chart',loadData,'load','#888');
-  });
 }
 
 function showGarminSetup(){document.getElementById('garmin-setup').style.display='block';}
