@@ -1068,7 +1068,7 @@ function renderWhoop(el){
   const today = new Date().toISOString().split('T')[0];
 
   // DEBUG: show state info visibly
-  const debugInfo = `connected=${connected} | data.length=${data.length} | localStorage_token=${!!localStorage.getItem('whoop_access_token')} | lastSync=${lastSync||'none'}`;
+  const debugInfo = `connected=${connected} | data.length=${data.length} | token=${!!localStorage.getItem('whoop_access_token')} | refresh=${!!localStorage.getItem('whoop_refresh_token')} | cached=${!!localStorage.getItem('whoop_cached_data')} | lastSync=${lastSync?.slice(11,19)||'none'}`;
 
   const fmt = v => v!=null ? (Number.isInteger(v)?v:Math.round(v*10)/10) : null;
   const fmtHrv = v => v!=null ? Math.round(v) : null;
@@ -1278,6 +1278,22 @@ async function syncWhoop(){
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({endpoint:"/v2/recovery",token,params:{limit:"25"}})
     });
+
+    // Check for auth failure
+    if(!recoveryRes.ok){
+      const errBody = await recoveryRes.json().catch(()=>({}));
+      console.warn('[Whoop] Recovery API failed:', recoveryRes.status, errBody);
+      if(recoveryRes.status === 401 || errBody?.error?.includes('401') || errBody?.error?.includes('auth')){
+        // Token expired — clear tokens and show reconnect
+        localStorage.removeItem('whoop_access_token');
+        localStorage.removeItem('whoop_refresh_token');
+        STATE.whoop.connected = false;
+        renderWhoop(document.getElementById('tab-content'));
+        alert('Whoop token expired — please reconnect Whoop in the Whoop tab.');
+        return;
+      }
+    }
+
     const recoveryData = recoveryRes.ok ? await recoveryRes.json() : {};
     console.log("[Whoop] Recovery:", JSON.stringify(recoveryData).slice(0,300));
 
