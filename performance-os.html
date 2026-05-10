@@ -1136,7 +1136,8 @@ function connectWhoop(){
 }
 
 async function syncWhoop(){
-  const token = localStorage.getItem('whoop_access_token');
+  let token = localStorage.getItem('whoop_access_token');
+  const refreshToken = localStorage.getItem('whoop_refresh_token');
   const backendUrl = localStorage.getItem('pos_backend_url');
   if(!token||!backendUrl){renderWhoop(document.getElementById('tab-content'));return;}
 
@@ -1144,21 +1145,49 @@ async function syncWhoop(){
   if(statusEl) statusEl.className='status-dot status-syncing';
 
   try{
-    // Fetch recovery data
+    // Try to refresh token first if we have a refresh token
+    if(refreshToken){
+      try{
+        const refreshRes = await fetch(`${backendUrl}/whoop/refresh`,{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({refresh_token:refreshToken})
+        });
+        if(refreshRes.ok){
+          const tokens = await refreshRes.json();
+          if(tokens.access_token){
+            token = tokens.access_token;
+            localStorage.setItem('whoop_access_token', token);
+            if(tokens.refresh_token) localStorage.setItem('whoop_refresh_token', tokens.refresh_token);
+            console.log('[Whoop] Token refreshed ✓');
+          }
+        }
+      } catch(e){ console.warn('[Whoop] Token refresh failed, trying existing token'); }
+    }
+
+    // Fetch recovery data — use correct Whoop v1 params
     const recoveryRes = await fetch(`${backendUrl}/whoop/api`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({endpoint:'/v1/recovery',token,params:{limit:30,start:new Date(Date.now()-30*86400000).toISOString()}})
+      body:JSON.stringify({endpoint:'/v1/recovery',token,params:{limit:'25'}})
     });
     const recoveryData = await recoveryRes.json();
+    console.log('[Whoop] Recovery response:', JSON.stringify(recoveryData).slice(0,200));
 
     // Fetch sleep data
     const sleepRes = await fetch(`${backendUrl}/whoop/api`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({endpoint:'/v1/sleep',token,params:{limit:30}})
+      body:JSON.stringify({endpoint:'/v1/sleep',token,params:{limit:'25'}})
     });
     const sleepData = await sleepRes.json();
+    console.log('[Whoop] Sleep response:', JSON.stringify(sleepData).slice(0,200));
 
-    // Merge into unified records
+    // Fetch cycle data (for strain)
+    const cycleRes = await fetch(`${backendUrl}/whoop/api`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({endpoint:'/v1/cycle',token,params:{limit:'25'}})
+    });
+    const cycleData = await cycleRes.json();
+
+    // Build unified records from recovery
     const records = (recoveryData.records||[]).map(r=>({
       id: r.cycle_id,
       date: r.created_at?.slice(0,10),
@@ -1168,28 +1197,44 @@ async function syncWhoop(){
       created_at: r.created_at,
     }));
 
-    // Add sleep scores
+    // Merge sleep duration
     (sleepData.records||[]).forEach(s=>{
       const date = s.start?.slice(0,10);
       const existing = records.find(r=>r.date===date);
-      if(existing){
-        existing.sleep_score = s.score?.stage_summary?.total_in_bed_time_milli ? Math.round(s.score.stage_summary.total_in_bed_time_milli/3600000*10)/10 : null;
-        existing.sleep_duration_hours = s.score?.stage_summary?.total_in_bed_time_milli ? Math.round(s.score.stage_summary.total_in_bed_time_milli/3600000*10)/10 : null;
-      }
+      const hours = s.score?.stage_summary?.total_in_bed_time_milli
+        ? Math.round(s.score.stage_summary.total_in_bed_time_milli/360000)/10 : null;
+      if(existing){ existing.sleep_duration_hours=hours; }
+      else if(date){ records.push({date,sleep_duration_hours:hours}); }
     });
+
+    // Merge strain
+    (cycleData.records||[]).forEach(c=>{
+      const date = c.start?.slice(0,10);
+      const existing = records.find(r=>r.date===date);
+      if(existing) existing.strain = c.score?.strain;
+    });
+
+    if(records.length === 0){
+      // Token likely expired and refresh didn't work — show helpful message
+      alert('Whoop returned no data. Your token may have expired — please reconnect Whoop.');
+      STATE.whoop.connected = false;
+      renderWhoop(document.getElementById('tab-content'));
+      return;
+    }
 
     // Save to IndexedDB
     await dbClear('whoop_data');
-    for(const r of records) await dbPut('whoop_data',r);
-
+    for(const r of records) await dbPut('whoop_data',{...r});
     STATE.whoop.data = records;
     STATE.whoop.connected = true;
     localStorage.setItem('whoop_last_sync', new Date().toISOString());
-
-    // Auto-populate entries with Whoop data
     await autoPopulateFromWhoop(records);
-
     renderWhoop(document.getElementById('tab-content'));
+    // Re-render overview to update today tiles
+    if(document.querySelector('.tab-btn.active')?.textContent.toLowerCase().includes('overview')){
+      renderOverview(document.getElementById('tab-content'));
+    }
+    console.log(`[Whoop] Synced ${records.length} records ✓`);
   } catch(err){
     console.error('Whoop sync error:',err);
     alert('Sync failed: '+err.message);
