@@ -1054,19 +1054,18 @@ const BACKEND = localStorage.getItem('pos_backend_url') || '';
 function renderWhoop(el){
   const connected = STATE.whoop.connected;
   const lastSync = localStorage.getItem('whoop_last_sync');
-  // Read directly from STATE — defensive copy
   const rawData = STATE.whoop.data;
-  console.log('[renderWhoop] STATE.whoop.data length:', rawData?.length, 'connected:', connected);
   const data = Array.isArray(rawData) ? [...rawData].sort((a,b)=>a.date<b.date?1:-1) : [];
   const latest = data[0] || null;
   const today = new Date().toISOString().split('T')[0];
 
-  // Helpers
+  // DEBUG: show state info visibly
+  const debugInfo = `connected=${connected} | data.length=${data.length} | localStorage_token=${!!localStorage.getItem('whoop_access_token')} | lastSync=${lastSync||'none'}`;
+
   const fmt = v => v!=null ? (Number.isInteger(v)?v:Math.round(v*10)/10) : null;
   const fmtHrv = v => v!=null ? Math.round(v) : null;
   const recColor = r => r>=67?'#00ff88':r>=34?'#ff9500':'#ff4444';
 
-  // Today's or latest values
   const todayRec = data.find(d=>d.date===today) || latest || {};
   const recovery = todayRec.recovery_score ?? null;
   const hrv      = fmtHrv(todayRec.hrv_rmssd_on_wake);
@@ -1076,6 +1075,9 @@ function renderWhoop(el){
   const strain   = fmt(todayRec.strain);
 
   el.innerHTML=`
+    <!-- DEBUG BAR -->
+    <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:9px;color:#555;font-family:monospace;word-break:break-all">${debugInfo}</div>
+
     <!-- Connection card -->
     <div class="connector-card" style="border-color:${connected?'rgba(179,136,255,0.2)':'rgba(255,255,255,0.07)'};margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center">
