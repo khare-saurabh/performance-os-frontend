@@ -561,44 +561,179 @@ function drawSparklines(tab){
 }
 
 function renderOverview(el){
-  const s=getSorted(),latest=getLatest();
-  const week1=s.filter(e=>e.date>='2026-05-05'&&e.sessionType!=='Rest');
-  const weekVol=week1.reduce((a,e)=>a+(e.volume||0),0);
+  const s=getSorted();
+  const today=new Date().toISOString().split('T')[0];
+  const todayEntry=s.find(e=>e.date===today)||{};
+  const todayFood=STATE.food.filter(f=>f.date===today);
+  const todayProtein=todayFood.reduce((a,f)=>a+(+f.protein||0),0);
+  const todayKcal=todayFood.reduce((a,f)=>a+(+f.calories||0),0);
+  const isRest=!todayEntry.volume;
+  const proteinTarget=isRest?140:162;
+  const kcalTarget=isRest?1450:1700;
+
+  // Pull latest Whoop data (today or most recent)
+  const whoopSorted=[...STATE.whoop.data].sort((a,b)=>a.date<b.date?1:-1);
+  const whoopToday=whoopSorted[0]||{};
+  const recovery=todayEntry.recovery??whoopToday.recovery_score??null;
+  const hrv=todayEntry.hrv??(whoopToday.hrv_rmssd_on_wake?Math.round(whoopToday.hrv_rmssd_on_wake):null)??null;
+  const rhr=todayEntry.rhr??whoopToday.resting_heart_rate??null;
+  const strain=whoopToday.strain??null;
+  const sleep=whoopToday.sleep_duration_hours??null;
+  const recColor=recovery>=67?'#00ff88':recovery>=34?'#ff9500':'#ff4444';
+
+  // Garmin — today's session
+  const todayGarmin=STATE.garmin.data.find(d=>d.date===today)||null;
+  const sessionCalories=todayEntry.sessionCalories??todayGarmin?.calories??null;
+  const sessionLoad=todayEntry.load??null;
+  const sessionVol=todayEntry.volume??null;
+  const sessionType=todayEntry.sessionType||null;
+
+  // Trend calcs
+  const ib=INBODY_HISTORY;
+  const ibFirst=ib[0],ibLast=ib[ib.length-1];
+  const bfDrop=(ibFirst.bodyFat-ibLast.bodyFat).toFixed(1);
+  const muscleChg=((ibLast.muscle-ibFirst.muscle)>=0?'+':'')+((ibLast.muscle-ibFirst.muscle).toFixed(1));
+  const allW=s.filter(e=>e.weight!=null).map(e=>e.weight);
+  const bestW=allW.length?Math.min(...allW):'—';
+  const allRecov=[...STATE.whoop.data].filter(d=>d.recovery_score).map(d=>d.recovery_score);
+  const avgRecov=allRecov.length?(allRecov.reduce((a,b)=>a+b,0)/allRecov.length).toFixed(0):'—';
+  const weekSessions=s.filter(e=>e.date>='2026-05-05'&&e.sessionType!=='Rest'&&e.volume);
+  const weekVol=weekSessions.reduce((a,e)=>a+(e.volume||0),0);
+  const allVols=s.filter(e=>e.volume).map(e=>e.volume);
+  const avgVol=allVols.length?(allVols.reduce((a,b)=>a+b,0)/allVols.length).toFixed(0):'—';
+
   el.innerHTML=`
-    <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:8px">Biometrics · tap to expand</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px" class="stat-grid-4">
-      ${miniCard('weight','Weight',getVal('weight'),'kg','#00ff88','65.5kg')}
-      ${miniCard('hrv','HRV',getVal('hrv'),'ms','#00d4ff','')}
-      ${miniCard('rhr','Resting HR',getVal('rhr'),'bpm','#ff9500','')}
-      ${miniCard('recovery','Recovery',getVal('recovery'),'%','#b388ff','')}
+  <!-- ── TODAY HEADER ── -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div>
+      <div style="font-size:9px;letter-spacing:2.5px;color:#00ff88;text-transform:uppercase;margin-bottom:3px">Today · ${today}</div>
+      <div style="font-size:15px;font-weight:600;color:#e0e0e0">${sessionType||'Rest Day'} <span style="font-size:11px;color:#333;font-weight:400">· Block 2</span></div>
     </div>
-    <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:8px">Nutrition & Training · tap to expand</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px" class="stat-grid-4">
-      ${miniCard('protein','Protein',getVal('protein'),'g','#00ff88','155g')}
-      ${miniCard('calories','Calories',getVal('totalCalories'),'kcal','#ff9500','')}
-      ${miniCard('volume','Session Volume',getVal('volume'),'kg','#ff6b6b','','bar')}
-      ${miniCard('sessionCalories','Session Burn',getVal('sessionCalories'),'kcal','#ffd43b','','bar')}
+    <button onclick="document.getElementById('add-food-modal').style.display='flex'" style="background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);color:#00ff88;border-radius:8px;padding:6px 14px;font-size:11px;cursor:pointer;font-family:inherit">+ Log food</button>
+  </div>
+
+  <!-- ── TODAY BIOMETRICS (Whoop + manual) ── -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px" class="stat-grid-4">
+    ${[
+      {l:'Weight',v:getVal('weight')??'—',u:'kg',c:'#00ff88',sub:'Target ≤66.2'},
+      {l:'Recovery',v:recovery??'—',u:'%',c:recovery!=null?recColor:'#444',sub:'Whoop'},
+      {l:'HRV',v:hrv??'—',u:'ms',c:'#00d4ff',sub:'On wake'},
+      {l:'RHR',v:rhr??'—',u:'bpm',c:'#ff9500',sub:'Resting'},
+      {l:'Sleep',v:sleep??'—',u:'h',c:'#69db7c',sub:'Last night'},
+    ].map(({l,v,u,c,sub})=>`<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:11px 10px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${c},transparent)"></div>
+      <div class="label" style="font-size:8px">${l}</div>
+      <div class="mono" style="font-size:17px;color:${c};font-weight:300;line-height:1.1">${v}<span style="font-size:9px;color:#444;margin-left:1px">${u}</span></div>
+      <div style="font-size:8px;color:#2a2a2a;margin-top:1px">${sub}</div>
+    </div>`).join('')}
+  </div>
+
+  <!-- ── TODAY SESSION (Garmin) ── -->
+  ${sessionVol||sessionCalories?`
+  <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 16px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="label" style="margin:0;color:${SESSION_COLORS[sessionType]||'#555'}">⌚ ${sessionType} · Garmin</div>
+      ${strain!=null?`<div style="font-size:10px;color:#555">Strain <span class="mono" style="color:#ff6b6b">${strain}</span></div>`:''}
     </div>
-    <div style="background:rgba(0,255,136,0.025);border:1px solid rgba(0,255,136,0.07);border-radius:12px;padding:18px;margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="label" style="color:#00ff88;margin:0">Block 2 · Week 1 Complete</div>
-        <div style="display:flex;gap:16px;font-size:10px">
-          <span style="color:#555">Vol <span class="mono" style="color:#00ff88">${weekVol.toLocaleString()}kg</span></span>
-          <span style="color:#555">InBody <span class="mono" style="color:#00d4ff">88/100</span></span>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      ${sessionVol?`<div><div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px">Volume</div><div class="mono" style="font-size:18px;color:#ff6b6b">${sessionVol.toLocaleString()}<span style="font-size:10px;color:#444;margin-left:2px">kg</span></div></div>`:''}
+      ${sessionCalories?`<div><div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px">Burn</div><div class="mono" style="font-size:18px;color:#ffd43b">${sessionCalories}<span style="font-size:10px;color:#444;margin-left:2px">kcal</span></div></div>`:''}
+      ${sessionLoad?`<div><div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px">Load</div><div class="mono" style="font-size:18px;color:#888">${sessionLoad}</div></div>`:''}
+      ${todayEntry.avgHr?`<div><div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px">Avg HR</div><div class="mono" style="font-size:18px;color:#ff9500">${todayEntry.avgHr}<span style="font-size:10px;color:#444;margin-left:2px">bpm</span></div></div>`:''}
+    </div>
+    ${todayEntry.notes?`<div style="font-size:11px;color:#333;margin-top:10px;line-height:1.6;padding-top:8px;border-top:1px solid #0f0f0f">${todayEntry.notes}</div>`:''}
+  </div>`:`<div style="background:rgba(255,255,255,0.015);border:1px solid #0f0f0f;border-radius:10px;padding:11px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+    <div style="font-size:12px;color:#2a2a2a">No session today</div>
+    <div style="font-size:10px;color:#1a1a1a">Next: Day 1 Rings</div>
+  </div>`}
+
+  <!-- ── TODAY NUTRITION ── -->
+  <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 16px;margin-bottom:20px">
+    <div class="label" style="margin-bottom:10px">Today's Nutrition</div>
+    <div style="display:flex;gap:16px;margin-bottom:8px">
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-size:11px;color:#888">Protein</span>
+          <span class="mono" style="font-size:11px;color:${todayProtein>=proteinTarget?'#00ff88':todayProtein>=proteinTarget*0.7?'#ff9500':'#ff4444'}">${todayProtein}g <span style="color:#333">/ ${proteinTarget}g</span></span>
         </div>
+        <div style="background:#111;border-radius:99px;height:5px"><div style="width:${Math.min(100,Math.round(todayProtein/proteinTarget*100))}%;height:100%;background:#00ff88;border-radius:99px"></div></div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-        ${week1.map(s=>`<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px 12px;border-top:2px solid ${SESSION_COLORS[s.sessionType]||'#333'}">
-          <div style="font-size:9px;color:${SESSION_COLORS[s.sessionType]};letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">${s.sessionType}</div>
-          <div style="font-size:9px;color:#333;margin-bottom:3px">${s.date.slice(5)}</div>
-          ${s.volume?`<div class="mono" style="font-size:13px">${s.volume.toLocaleString()}<span style="font-size:8px;color:#444;margin-left:1px">kg</span></div>`:''}
-        </div>`).join('')}
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-size:11px;color:#888">Calories</span>
+          <span class="mono" style="font-size:11px;color:#888">${todayKcal} <span style="color:#333">/ ${kcalTarget}</span></span>
+        </div>
+        <div style="background:#111;border-radius:99px;height:5px"><div style="width:${Math.min(100,Math.round(todayKcal/kcalTarget*100))}%;height:100%;background:#ff9500;border-radius:99px"></div></div>
       </div>
     </div>
-    ${latest.notes?`<div style="background:rgba(255,255,255,0.015);border:1px solid #101010;border-radius:10px;padding:12px 14px">
-      <div class="label">Latest · ${latest.date}</div>
-      <div style="font-size:12px;color:#444;line-height:1.6">${latest.notes}</div>
-    </div>`:''}`;
+    ${todayFood.length?`<div style="display:flex;gap:5px;flex-wrap:wrap">${todayFood.map(f=>`<span style="background:rgba(255,255,255,0.03);border:1px solid #111;border-radius:5px;padding:2px 7px;font-size:9px;color:${MEAL_COLORS[f.meal]||'#555'}">${f.meal} · ${f.protein||0}g</span>`).join('')}</div>`:`<div style="font-size:10px;color:#222">No food logged yet</div>`}
+  </div>
+
+  <!-- ── DIVIDER ── -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <div style="height:1px;flex:1;background:linear-gradient(90deg,transparent,#1a1a1a)"></div>
+    <div style="font-size:9px;letter-spacing:2.5px;color:#222;text-transform:uppercase;white-space:nowrap">Programme Trends</div>
+    <div style="height:1px;flex:1;background:linear-gradient(90deg,#1a1a1a,transparent)"></div>
+  </div>
+
+  <!-- ── TREND HEADLINE STATS ── -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px" class="stat-grid-4">
+    <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.1);border-radius:10px;padding:12px 14px;text-align:center">
+      <div class="label" style="font-size:8px">BF % Drop</div>
+      <div class="mono" style="font-size:20px;color:#ff6b6b">−${bfDrop}<span style="font-size:9px;color:#444">%</span></div>
+      <div style="font-size:8px;color:#2a2a2a">${ibFirst.bodyFat}→${ibLast.bodyFat}%</div>
+    </div>
+    <div style="background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.1);border-radius:10px;padding:12px 14px;text-align:center">
+      <div class="label" style="font-size:8px">Muscle</div>
+      <div class="mono" style="font-size:20px;color:#00ff88">${muscleChg}<span style="font-size:9px;color:#444">kg</span></div>
+      <div style="font-size:8px;color:#2a2a2a">${ibFirst.muscle}→${ibLast.muscle}kg</div>
+    </div>
+    <div style="background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);border-radius:10px;padding:12px 14px;text-align:center">
+      <div class="label" style="font-size:8px">Best Weight</div>
+      <div class="mono" style="font-size:20px;color:#00d4ff">${bestW}<span style="font-size:9px;color:#444">kg</span></div>
+      <div style="font-size:8px;color:#2a2a2a">Programme low</div>
+    </div>
+    <div style="background:rgba(179,136,255,0.04);border:1px solid rgba(179,136,255,0.1);border-radius:10px;padding:12px 14px;text-align:center">
+      <div class="label" style="font-size:8px">Avg Recovery</div>
+      <div class="mono" style="font-size:20px;color:#b388ff">${avgRecov}<span style="font-size:9px;color:#444">${avgRecov!=='—'?'%':''}</span></div>
+      <div style="font-size:8px;color:#2a2a2a">Whoop · all time</div>
+    </div>
+  </div>
+
+  <!-- ── TREND SPARKLINES ── -->
+  <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:8px">Biometrics · tap to expand</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px" class="stat-grid-4">
+    ${miniCard('weight','Weight',getVal('weight'),'kg','#00ff88','65.5kg')}
+    ${miniCard('hrv','HRV',getVal('hrv'),'ms','#00d4ff','')}
+    ${miniCard('rhr','Resting HR',getVal('rhr'),'bpm','#ff9500','')}
+    ${miniCard('recovery','Recovery',getVal('recovery'),'%','#b388ff','')}
+  </div>
+  <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:8px">Training & Nutrition · tap to expand</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px" class="stat-grid-4">
+    ${miniCard('protein','Protein',getVal('protein'),'g','#00ff88','155g')}
+    ${miniCard('calories','Calories',getVal('totalCalories'),'kcal','#ff9500','')}
+    ${miniCard('volume','Session Vol',getVal('volume'),'kg','#ff6b6b','','bar')}
+    ${miniCard('sessionCalories','Session Burn',getVal('sessionCalories'),'kcal','#ffd43b','','bar')}
+  </div>
+
+  <!-- ── CURRENT BLOCK ── -->
+  <div style="background:rgba(0,255,136,0.02);border:1px solid rgba(0,255,136,0.07);border-radius:12px;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="label" style="color:#00ff88;margin:0">Block 2 · Week 1 Complete</div>
+      <div style="display:flex;gap:14px;font-size:10px">
+        <span style="color:#444">Vol <span class="mono" style="color:#00ff88">${weekVol.toLocaleString()}kg</span></span>
+        <span style="color:#444">InBody <span class="mono" style="color:#00d4ff">88/100</span></span>
+        <span style="color:#444">Avg <span class="mono" style="color:#ff6b6b">${avgVol}kg</span></span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      ${weekSessions.map(e=>`<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:9px 10px;border-top:2px solid ${SESSION_COLORS[e.sessionType]||'#333'}">
+        <div style="font-size:8px;color:${SESSION_COLORS[e.sessionType]};letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${e.sessionType}</div>
+        <div style="font-size:9px;color:#2a2a2a;margin-bottom:3px">${e.date.slice(5)}</div>
+        ${e.volume?`<div class="mono" style="font-size:12px">${e.volume.toLocaleString()}<span style="font-size:8px;color:#333;margin-left:1px">kg</span></div>`:''}
+      </div>`).join('')}
+    </div>
+  </div>`;
 }
 
 function renderTraining(el){
