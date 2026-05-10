@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performance OS — Connecting Whoop...</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .container {
+      text-align: center;
+      padding: 40px 24px;
+      max-width: 400px;
+    }
+    .icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.95); }
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #f0f0f0;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #555;
+      line-height: 1.5;
+    }
+    .status {
+      margin-top: 24px;
+      font-size: 12px;
+      font-family: monospace;
+      color: #333;
+    }
+    .success .icon { animation: none; }
+    .success .title { color: #00ff88; }
+    .error .icon { animation: none; }
+    .error .title { color: #ff4444; }
+  </style>
+</head>
+<body>
+  <div class="container" id="container">
+    <div class="icon">⚡</div>
+    <div class="title">Connecting Whoop...</div>
+    <div class="subtitle">Saving your credentials securely</div>
+    <div class="status" id="status">Reading tokens...</div>
+  </div>
+
+  <script>
+    async function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('PerformanceOS', 1);
+        req.onupgradeneeded = e => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('settings')) {
+            db.createObjectStore('settings', { keyPath: 'key' });
+          }
+          if (!db.objectStoreNames.contains('entries')) {
+            db.createObjectStore('entries', { keyPath: 'id', autoIncrement: true });
+          }
+        };
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveSetting(db, key, value) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readwrite');
+        tx.objectStore('settings').put({ key, value });
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    function setSuccess() {
+      const c = document.getElementById('container');
+      c.classList.add('success');
+      c.querySelector('.icon').textContent = '✓';
+      c.querySelector('.title').textContent = 'Whoop Connected!';
+      c.querySelector('.subtitle').textContent = 'Redirecting to Performance OS...';
+    }
+
+    function setError(msg) {
+      const c = document.getElementById('container');
+      c.classList.add('error');
+      c.querySelector('.icon').textContent = '✗';
+      c.querySelector('.title').textContent = 'Connection Failed';
+      c.querySelector('.subtitle').textContent = msg;
+    }
+
+    async function handleCallback() {
+      try {
+        // Read tokens from URL hash (e.g. #access_token=xxx&refresh_token=yyy&expires_in=3600)
+        const hash = window.location.hash.slice(1);
+        if (!hash) {
+          // Also check query params as fallback
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('error')) {
+            throw new Error('Whoop authorisation was denied: ' + params.get('error'));
+          }
+          throw new Error('No token data in URL. Hash was empty.');
+        }
+
+        const params = new URLSearchParams(hash);
+        const accessToken  = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const expiresIn    = params.get('expires_in');
+
+        if (!accessToken) {
+          throw new Error('No access_token found in callback URL.');
+        }
+
+        setStatus('Opening secure storage...');
+        const db = await openDB();
+
+        setStatus('Saving tokens...');
+        const expiresAt = Date.now() + (parseInt(expiresIn) || 3600) * 1000;
+
+        await saveSetting(db, 'whoop_access_token',  accessToken);
+        await saveSetting(db, 'whoop_refresh_token', refreshToken);
+        await saveSetting(db, 'whoop_expires_at',    expiresAt);
+        await saveSetting(db, 'whoop_connected',     true);
+
+        // Also store last sync timestamp
+        localStorage.setItem('whoop_last_sync', new Date().toISOString());
+
+        setStatus('Done ✓');
+        setSuccess();
+
+        // Redirect back to main app after 1.5s
+        setTimeout(() => {
+          window.location.href = '/performance-os.html?whoop=connected';
+        }, 1500);
+
+      } catch (err) {
+        console.error('Whoop callback error:', err);
+        setError(err.message);
+        setStatus('Redirecting back in 4 seconds...');
+        setTimeout(() => {
+          window.location.href = '/performance-os.html?whoop=error&msg=' + encodeURIComponent(err.message);
+        }, 4000);
+      }
+    }
+
+    handleCallback();
+  </script>
+</body>
+</html>
