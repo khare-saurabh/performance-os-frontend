@@ -234,6 +234,47 @@ async function loadAllData() {
   }
 }
 
+// Poll Railway backend for food entries pushed by Claude
+async function syncFoodFromBackend() {
+  const backendUrl = localStorage.getItem('pos_backend_url');
+  if(!backendUrl) return;
+  try {
+    const res = await fetch(`${backendUrl}/food/pending`);
+    if(!res.ok) return;
+    const data = await res.json();
+    if(!data.entries || data.entries.length === 0) return;
+
+    const idsToAck = [];
+    for(const entry of data.entries) {
+      // Check if already synced (same date + meal + items)
+      const exists = STATE.food.find(f =>
+        f.date === entry.date && f.meal === entry.meal &&
+        f.items === entry.items
+      );
+      if(!exists) {
+        const { id: serverId, pushedAt, ...foodEntry } = entry;
+        const localId = await dbPut('food', foodEntry);
+        foodEntry.id = localId;
+        STATE.food.push(foodEntry);
+        console.log(`[Food sync] Added: ${entry.meal} ${entry.date} — ${entry.protein}g / ${entry.calories}kcal`);
+      }
+      idsToAck.push(entry.id);
+    }
+
+    // Acknowledge receipt so backend clears the queue
+    if(idsToAck.length > 0) {
+      await fetch(`${backendUrl}/food/ack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: idsToAck })
+      });
+      console.log(`[Food sync] Acked ${idsToAck.length} entries`);
+    }
+  } catch(err) {
+    console.warn('[Food sync] Failed:', err.message);
+  }
+}
+
 async function seedIfEmpty() {
   const ex = await dbGet('entries');
   if(ex.length > 0) return;
@@ -1432,6 +1473,7 @@ async function init(){
   await initDB();
   await seedIfEmpty();
   await loadAllData();
+  await syncFoodFromBackend(); // Pull any food Claude logged via Railway
   buildPinPad();
   handleWhoopCallback();
   ['food-date','photo-date'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=new Date().toISOString().split('T')[0];});
