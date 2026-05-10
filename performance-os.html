@@ -1152,7 +1152,7 @@ function renderWhoop(el){
         }).join('')}
       </div>
     </div>
-    ` : `<div style="text-align:center;color:#333;padding:40px;font-size:12px">Connect Whoop to see your recovery data</div>`}
+    ` : ''}
   `;
 
   // Draw charts
@@ -1289,13 +1289,16 @@ async function syncWhoop(){
     });
 
     (sleepData.records||[]).filter(s=>!s.nap).forEach(s=>{
-      const date = s.start?.slice(0,10);
-      const existing = records.find(r=>r.date===date);
+      // Match by cycle_id first (most accurate)
+      const byCycleId = records.find(r=>r.id === s.cycle_id);
+      // Fall back: sleep starts night before, cycle date = sleep start date + 1 day
+      const sleepDate = s.start?.slice(0,10);
+      const nextDay = sleepDate ? new Date(new Date(sleepDate).getTime()+86400000).toISOString().slice(0,10) : null;
+      const existing = byCycleId || records.find(r=>r.date===nextDay) || records.find(r=>r.date===sleepDate);
       const hours = s.score?.stage_summary?.total_in_bed_time_milli
         ? Math.round(s.score.stage_summary.total_in_bed_time_milli/360000)/10 : null;
       const perf = s.score?.sleep_performance_percentage ?? null;
       if(existing){ existing.sleep_duration_hours=hours; existing.sleep_score=perf; }
-      else if(date) records.push({date, sleep_duration_hours:hours, sleep_score:perf});
     });
 
     if(records.length === 0){
