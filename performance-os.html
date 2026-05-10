@@ -232,15 +232,23 @@ async function loadAllData() {
   STATE.entries = await dbGet('entries');
   STATE.food = await dbGet('food');
   STATE.photos = await dbGet('photos');
-  const wd = await dbGet('whoop_data');
-  if(wd.length) { STATE.whoop.data = wd; STATE.whoop.connected = true; }
   const gd = await dbGet('garmin_data');
   if(gd.length) { STATE.garmin.data = gd; STATE.garmin.connected = true; }
 
-  // Check if Whoop tokens were saved by the callback page (stored in localStorage)
+  // Load Whoop data from localStorage (more reliable than IndexedDB for this data)
   const whoopToken = localStorage.getItem('whoop_access_token');
-  if(whoopToken) {
-    STATE.whoop.connected = true;
+  if(whoopToken) STATE.whoop.connected = true;
+
+  const cachedWhoop = localStorage.getItem('whoop_cached_data');
+  if(cachedWhoop) {
+    try {
+      const parsed = JSON.parse(cachedWhoop);
+      if(Array.isArray(parsed) && parsed.length > 0) {
+        STATE.whoop.data = parsed;
+        STATE.whoop.connected = true;
+        console.log(`[loadAllData] Loaded ${parsed.length} Whoop records from localStorage`);
+      }
+    } catch(e) { console.warn('[loadAllData] Failed to parse whoop cache:', e.message); }
   }
 }
 
@@ -1318,9 +1326,10 @@ async function syncWhoop(){
 
     if(records.length === 0){
       console.warn('[Whoop] No records returned from API');
-      // Don't wipe existing cache — just reload from IndexedDB
-      const existing = await dbGet('whoop_data');
-      STATE.whoop.data = existing;
+      const cached = localStorage.getItem('whoop_cached_data');
+      if(cached) {
+        try { STATE.whoop.data = JSON.parse(cached); } catch(e){}
+      }
       STATE.whoop.connected = true;
       localStorage.setItem('whoop_last_sync', new Date().toISOString());
       const el = document.getElementById('tab-content');
@@ -1329,21 +1338,14 @@ async function syncWhoop(){
       return;
     }
 
-    // Only persist if we got actual data — never wipe good cache with empty
-    if(records.length > 0){
-      await dbClear('whoop_data');
-      for(const r of records){
-        await dbPut('whoop_data', {...r});
-      }
-      const saved = await dbGet('whoop_data');
-      console.log(`[Whoop] Verified ${saved.length} records in IndexedDB`);
-      STATE.whoop.data = saved.length > 0 ? saved : records;
-    } else {
-      console.warn('[Whoop] Sync returned 0 records — keeping existing cache');
-      // Still update STATE from existing IndexedDB data
-      const existing = await dbGet('whoop_data');
-      if(existing.length) STATE.whoop.data = existing;
+    // Save to localStorage (IndexedDB unreliable for Whoop cycle_ids)
+    try {
+      localStorage.setItem('whoop_cached_data', JSON.stringify(records));
+      console.log(`[Whoop] Saved ${records.length} records to localStorage`);
+    } catch(e) {
+      console.warn('[Whoop] localStorage save failed:', e.message);
     }
+    STATE.whoop.data = records;
     STATE.whoop.connected = true;
     localStorage.setItem('whoop_last_sync', new Date().toISOString());
     await autoPopulateFromWhoop(STATE.whoop.data);
