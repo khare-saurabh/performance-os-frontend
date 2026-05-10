@@ -1044,17 +1044,35 @@ const BACKEND = localStorage.getItem('pos_backend_url') || '';
 function renderWhoop(el){
   const connected = STATE.whoop.connected;
   const lastSync = localStorage.getItem('whoop_last_sync');
-  const data = STATE.whoop.data;
-  const latest = data.length ? data[data.length-1] : null;
+  // Sort descending so index 0 = most recent
+  const data = [...STATE.whoop.data].sort((a,b)=>a.date<b.date?1:-1);
+  const latest = data[0] || null;
+  const today = new Date().toISOString().split('T')[0];
+
+  // Helpers
+  const fmt = v => v!=null ? (Number.isInteger(v)?v:Math.round(v*10)/10) : null;
+  const fmtHrv = v => v!=null ? Math.round(v) : null;
+  const recColor = r => r>=67?'#00ff88':r>=34?'#ff9500':'#ff4444';
+
+  // Today's or latest values
+  const todayRec = data.find(d=>d.date===today) || latest || {};
+  const recovery = todayRec.recovery_score ?? null;
+  const hrv      = fmtHrv(todayRec.hrv_rmssd_on_wake);
+  const rhr      = todayRec.resting_heart_rate ?? null;
+  const sleep    = fmt(todayRec.sleep_duration_hours);
+  const sleepScore = todayRec.sleep_score ?? null;
+  const strain   = fmt(todayRec.strain);
 
   el.innerHTML=`
-    <div class="connector-card" style="border-color:${connected?'rgba(0,255,136,0.2)':'rgba(255,255,255,0.07)'}">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <!-- Connection card -->
+    <div class="connector-card" style="border-color:${connected?'rgba(179,136,255,0.2)':'rgba(255,255,255,0.07)'};margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:10px">
           <div style="font-size:24px">⚡</div>
           <div>
             <div style="font-size:14px;font-weight:600">Whoop</div>
-            <div style="font-size:11px;color:#555">${connected?'Connected':'Not connected'}</div>
+            <div style="font-size:11px;color:${connected?'#00ff88':'#555'}">${connected?'Connected':'Not connected'}</div>
+            ${connected&&lastSync?`<div style="font-size:10px;color:#333;margin-top:2px">Last sync · ${new Date(lastSync).toLocaleTimeString()}</div>`:''}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -1066,56 +1084,114 @@ function renderWhoop(el){
           }
         </div>
       </div>
-      ${connected && lastSync ? `<div style="font-size:10px;color:#333;margin-bottom:12px">Last sync: ${new Date(lastSync).toLocaleString()}</div>` : ''}
-      ${!connected ? `
-        <div style="background:rgba(255,255,255,0.02);border-radius:10px;padding:14px;margin-top:4px">
-          <div class="label" style="margin-bottom:8px">Setup required</div>
-          <div style="font-size:11px;color:#555;line-height:1.6;margin-bottom:12px">
-            1. Make sure your Railway backend is running<br>
-            2. Enter your backend URL below<br>
-            3. Tap Connect — you'll be redirected to Whoop to authorise
-          </div>
+      ${!connected?`
+        <div style="margin-top:14px;border-top:1px solid #111;padding-top:14px">
           <label class="label">Backend URL</label>
-          <input type="url" class="input" id="backend-url-input" placeholder="https://your-app.up.railway.app" value="${BACKEND}" style="margin-bottom:10px">
-          <button onclick="saveBackendUrl()" class="btn-primary" style="width:100%;padding:10px 0">Save & Connect Whoop</button>
-        </div>` : ''}
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <input type="url" class="input" id="backend-url-input" placeholder="https://performance-os-backend-production.up.railway.app" value="${localStorage.getItem('pos_backend_url')||''}" style="flex:1">
+            <button onclick="saveBackendUrl()" class="btn-primary" style="padding:10px 14px;font-size:11px;white-space:nowrap">Save & Connect</button>
+          </div>
+        </div>`:''}
     </div>
 
-    ${connected && latest ? `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" class="stat-grid-4">
+    ${connected?`
+    <!-- Today's metrics -->
+    <div style="font-size:9px;letter-spacing:2px;color:#b388ff;text-transform:uppercase;margin-bottom:10px">${todayRec.date===today?'Today':'Latest'} · ${todayRec.date||'—'}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px" class="stat-grid-4">
       ${[
-        {l:'Recovery',v:latest.recovery_score,u:'%',c:'#b388ff'},
-        {l:'HRV',v:latest.hrv_rmssd_on_wake,u:'ms',c:'#00d4ff'},
-        {l:'RHR',v:latest.resting_heart_rate,u:'bpm',c:'#ff9500'},
-        {l:'Sleep Score',v:latest.sleep_score,u:'%',c:'#69db7c'},
-        {l:'Sleep Duration',v:latest.sleep_duration_hours,u:'hrs',c:'#00d4ff'},
-        {l:'Strain',v:latest.strain,u:'',c:'#ff6b6b'},
-      ].map(({l,v,u,c})=>`<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
+        {l:'Recovery',    v:recovery,          u:'%',   c:recovery!=null?recColor(recovery):'#444'},
+        {l:'HRV',         v:hrv,               u:'ms',  c:'#00d4ff'},
+        {l:'Resting HR',  v:rhr,               u:'bpm', c:'#ff9500'},
+        {l:'Sleep',       v:sleep,             u:'hrs', c:'#69db7c'},
+        {l:'Sleep Score', v:sleepScore!=null?Math.round(sleepScore):null, u:'%', c:'#b388ff'},
+        {l:'Strain',      v:strain,            u:'',    c:'#ff6b6b'},
+      ].map(({l,v,u,c})=>`<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${c},transparent)"></div>
         <div class="label">${l}</div>
-        <div class="mono" style="font-size:22px;color:${c};font-weight:300">${v??'—'}<span style="font-size:10px;color:#444;margin-left:2px">${u}</span></div>
+        <div class="mono" style="font-size:20px;color:${c};font-weight:300">${v??'—'}<span style="font-size:10px;color:#444;margin-left:2px">${v!=null?u:''}</span></div>
       </div>`).join('')}
-    </div>` : ''}
+    </div>
 
-    ${connected && data.length > 0 ? `
+    <!-- History charts -->
+    <div style="font-size:9px;letter-spacing:2px;color:#1e1e1e;text-transform:uppercase;margin-bottom:10px">History</div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="label" style="margin-bottom:8px">Recovery % · last 25 days</div>
+      <canvas id="w_rec_chart" width="600" height="110" style="width:100%;height:auto"></canvas>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div class="card"><div class="label" style="margin-bottom:6px">HRV (ms)</div><canvas id="w_hrv_chart" width="180" height="80" style="width:100%;height:auto"></canvas></div>
+      <div class="card"><div class="label" style="margin-bottom:6px">RHR (bpm)</div><canvas id="w_rhr_chart" width="180" height="80" style="width:100%;height:auto"></canvas></div>
+      <div class="card"><div class="label" style="margin-bottom:6px">Strain</div><canvas id="w_str_chart" width="180" height="80" style="width:100%;height:auto"></canvas></div>
+    </div>
+
+    <!-- History table -->
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f;display:flex;justify-content:space-between;align-items:center">
-        <div class="label">Raw Whoop Data</div>
-        <span style="font-size:10px;color:#444">${data.length} records</span>
+      <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f;display:flex;justify-content:space-between">
+        <div class="label">Daily Log</div>
+        <span style="font-size:10px;color:#444">${data.length} days</span>
       </div>
-      <div style="max-height:400px;overflow-y:auto">
-        ${[...data].reverse().slice(0,20).map(d=>`<div class="import-row" style="padding:10px 16px">
-          <span class="mono" style="color:#444;font-size:10px">${d.date||d.created_at?.slice(0,10)||'—'}</span>
-          <div style="display:flex;gap:12px">
-            ${d.recovery_score!=null?`<span class="mono" style="color:#b388ff;font-size:11px">R:${d.recovery_score}%</span>`:''}
-            ${d.hrv_rmssd_on_wake!=null?`<span class="mono" style="color:#00d4ff;font-size:11px">HRV:${d.hrv_rmssd_on_wake}</span>`:''}
-            ${d.resting_heart_rate!=null?`<span class="mono" style="color:#ff9500;font-size:11px">RHR:${d.resting_heart_rate}</span>`:''}
-            ${d.strain!=null?`<span class="mono" style="color:#ff6b6b;font-size:11px">S:${d.strain}</span>`:''}
-          </div>
-        </div>`).join('')}
+      <div style="max-height:340px;overflow-y:auto">
+        ${data.slice(0,30).map(d=>{
+          const rc=d.recovery_score;
+          return `<div style="padding:9px 16px;border-bottom:1px solid #0a0a0a;display:flex;justify-content:space-between;align-items:center">
+            <span class="mono" style="color:#444;font-size:10px;flex-shrink:0">${d.date}</span>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+              ${rc!=null?`<span class="mono" style="font-size:11px;color:${recColor(rc)}">R:${rc}%</span>`:''}
+              ${d.hrv_rmssd_on_wake!=null?`<span class="mono" style="font-size:11px;color:#00d4ff">HRV:${Math.round(d.hrv_rmssd_on_wake)}</span>`:''}
+              ${d.resting_heart_rate!=null?`<span class="mono" style="font-size:11px;color:#ff9500">RHR:${d.resting_heart_rate}</span>`:''}
+              ${d.sleep_duration_hours!=null?`<span class="mono" style="font-size:11px;color:#69db7c">${fmt(d.sleep_duration_hours)}h</span>`:''}
+              ${d.strain!=null?`<span class="mono" style="font-size:11px;color:#ff6b6b">S:${fmt(d.strain)}</span>`:''}
+            </div>
+          </div>`;
+        }).join('')}
       </div>
-    </div>` : connected ? `<div style="text-align:center;color:#333;padding:40px;font-size:12px">No data yet — tap Sync to fetch from Whoop</div>` : ''}
+    </div>
+    ` : `<div style="text-align:center;color:#333;padding:40px;font-size:12px">Connect Whoop to see your recovery data</div>`}
   `;
+
+  // Draw charts
+  if(!connected || data.length < 2) return;
+  requestAnimationFrame(()=>{
+    function drawLine(id, pts, color, refLines){
+      const canvas=document.getElementById(id); if(!canvas||pts.length<2)return;
+      const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height,pad=18;
+      ctx.clearRect(0,0,W,H);
+      const vals=pts.map(p=>p.v).filter(v=>v!=null);
+      if(!vals.length)return;
+      const min=Math.min(...vals)-2, max=Math.max(...vals)+2, range=max-min||1;
+      const x=i=>pad+(i/(pts.length-1))*(W-pad*2);
+      const y=v=>H-pad-((v-min)/range)*(H-pad*2);
+      // grid
+      ctx.strokeStyle='#0f0f0f';ctx.lineWidth=1;
+      for(let i=0;i<=3;i++){const yy=pad+(i/3)*(H-pad*2);ctx.beginPath();ctx.moveTo(pad,yy);ctx.lineTo(W-pad,yy);ctx.stroke();}
+      // ref lines
+      (refLines||[]).forEach(({v,c})=>{
+        if(v<min||v>max)return;
+        ctx.strokeStyle=c+'50';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+        ctx.beginPath();ctx.moveTo(pad,y(v));ctx.lineTo(W-pad,y(v));ctx.stroke();ctx.setLineDash([]);
+      });
+      // fill
+      const grad=ctx.createLinearGradient(0,pad,0,H);grad.addColorStop(0,color+'44');grad.addColorStop(1,color+'00');
+      ctx.beginPath();ctx.moveTo(x(0),H);ctx.lineTo(x(0),y(pts[0].v??min));
+      pts.forEach((p,i)=>{ if(p.v!=null) ctx.lineTo(x(i),y(p.v)); });
+      ctx.lineTo(x(pts.length-1),H);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+      // line
+      ctx.beginPath();let first=true;
+      pts.forEach((p,i)=>{ if(p.v==null)return; if(first){ctx.moveTo(x(i),y(p.v));first=false;}else ctx.lineTo(x(i),y(p.v)); });
+      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.stroke();
+      // dots
+      pts.forEach((p,i)=>{ if(p.v==null)return; ctx.beginPath();ctx.arc(x(i),y(p.v),2.5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill(); });
+      // x labels
+      ctx.fillStyle='#333';ctx.font='8px monospace';ctx.textAlign='center';
+      pts.forEach((p,i)=>{ if(i%(Math.ceil(pts.length/6))===0) ctx.fillText(p.date.slice(5),x(i),H-3); });
+    }
+
+    const rev = [...data].reverse(); // oldest first for charts
+    drawLine('w_rec_chart', rev.map(d=>({date:d.date,v:d.recovery_score})), '#b388ff', [{v:67,c:'#00ff88'},{v:34,c:'#ff9500'}]);
+    drawLine('w_hrv_chart', rev.map(d=>({date:d.date,v:d.hrv_rmssd_on_wake!=null?Math.round(d.hrv_rmssd_on_wake):null})), '#00d4ff');
+    drawLine('w_rhr_chart', rev.map(d=>({date:d.date,v:d.resting_heart_rate})), '#ff9500');
+    drawLine('w_str_chart', rev.map(d=>({date:d.date,v:d.strain!=null?Math.round(d.strain*10)/10:null})), '#ff6b6b');
+  });
 }
 
 function saveBackendUrl(){
