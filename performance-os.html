@@ -1304,30 +1304,33 @@ async function syncWhoop(){
     });
 
     if(records.length === 0){
-      console.warn('[Whoop] No records returned — API may have returned empty data');
-      await dbClear('whoop_data');
-      STATE.whoop.data = [];
+      console.warn('[Whoop] No records returned from API');
+      // Don't wipe existing cache — just reload from IndexedDB
+      const existing = await dbGet('whoop_data');
+      STATE.whoop.data = existing;
+      STATE.whoop.connected = true;
       localStorage.setItem('whoop_last_sync', new Date().toISOString());
-      renderWhoop(document.getElementById('tab-content'));
+      const el = document.getElementById('tab-content');
+      const activeTab = document.querySelector('.tab-btn.active')?.textContent.toLowerCase().trim();
+      if(activeTab?.includes('whoop')) renderWhoop(el);
       return;
     }
 
-    // Ensure every record has an id (required by IndexedDB keyPath)
-    records.forEach((r,i) => { if(!r.id) r.id = Date.now() + i; });
-
-    console.log(`[Whoop] About to save ${records.length} records:`, records.slice(0,2));
-
-    // Save to IndexedDB — await each put
-    await dbClear('whoop_data');
-    for(const r of records){
-      await dbPut('whoop_data', {...r});
+    // Only persist if we got actual data — never wipe good cache with empty
+    if(records.length > 0){
+      await dbClear('whoop_data');
+      for(const r of records){
+        await dbPut('whoop_data', {...r});
+      }
+      const saved = await dbGet('whoop_data');
+      console.log(`[Whoop] Verified ${saved.length} records in IndexedDB`);
+      STATE.whoop.data = saved.length > 0 ? saved : records;
+    } else {
+      console.warn('[Whoop] Sync returned 0 records — keeping existing cache');
+      // Still update STATE from existing IndexedDB data
+      const existing = await dbGet('whoop_data');
+      if(existing.length) STATE.whoop.data = existing;
     }
-
-    // Verify saved correctly
-    const saved = await dbGet('whoop_data');
-    console.log(`[Whoop] Verified ${saved.length} records in IndexedDB`);
-
-    STATE.whoop.data = saved.length > 0 ? saved : records;
     STATE.whoop.connected = true;
     localStorage.setItem('whoop_last_sync', new Date().toISOString());
     await autoPopulateFromWhoop(STATE.whoop.data);
@@ -1623,11 +1626,6 @@ async function init(){
   await seedIfEmpty();
   await loadAllData();
   await syncFoodFromBackend();
-  // Auto-sync Whoop if connected but no data loaded
-  if(STATE.whoop.connected && STATE.whoop.data.length === 0){
-    console.log('[Init] Whoop connected but no cached data — auto-syncing');
-    await syncWhoop();
-  }
   buildPinPad();
   handleWhoopCallback();
   ['food-date','photo-date'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=new Date().toISOString().split('T')[0];});
