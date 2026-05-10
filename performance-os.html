@@ -1168,54 +1168,62 @@ async function syncWhoop(){
       } catch(e){ console.warn('[Whoop] Token refresh failed, trying existing token'); }
     }
 
-    // Fetch recovery data — use correct Whoop v1 params
-    const recoveryRes = await fetch(`${backendUrl}/whoop/api`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({endpoint:'/v1/recovery',token,params:{limit:'25'}})
-    });
-    const recoveryData = await recoveryRes.json();
-    console.log('[Whoop] Recovery response:', JSON.stringify(recoveryData).slice(0,200));
-
-    // Fetch sleep data
-    const sleepRes = await fetch(`${backendUrl}/whoop/api`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({endpoint:'/v1/sleep',token,params:{limit:'25'}})
-    });
-    const sleepData = await sleepRes.json();
-    console.log('[Whoop] Sleep response:', JSON.stringify(sleepData).slice(0,200));
-
-    // Fetch cycle data (for strain)
+    // Step 1: Get cycles (contains strain + recovery data)
     const cycleRes = await fetch(`${backendUrl}/whoop/api`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({endpoint:'/v1/cycle',token,params:{limit:'25'}})
     });
     const cycleData = await cycleRes.json();
+    console.log('[Whoop] Cycle response:', JSON.stringify(cycleData).slice(0,300));
 
-    // Build unified records from recovery
-    const records = (recoveryData.records||[]).map(r=>({
-      id: r.cycle_id,
-      date: r.created_at?.slice(0,10),
-      recovery_score: r.score?.recovery_score,
-      hrv_rmssd_on_wake: r.score?.hrv_rmssd_on_wake,
-      resting_heart_rate: r.score?.resting_heart_rate,
-      created_at: r.created_at,
-    }));
+    // Step 2: Get recovery for each cycle
+    const records = [];
+    for(const cycle of (cycleData.records||[]).slice(0,10)){
+      const cycleId = cycle.id;
+      const date = cycle.start?.slice(0,10);
+      if(!cycleId||!date) continue;
 
-    // Merge sleep duration
+      let recovery_score=null, hrv=null, rhr=null;
+      try{
+        const recRes = await fetch(`${backendUrl}/whoop/api`,{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({endpoint:`/v1/cycle/${cycleId}/recovery`,token})
+        });
+        if(recRes.ok){
+          const rec = await recRes.json();
+          recovery_score = rec.score?.recovery_score??null;
+          hrv = rec.score?.hrv_rmssd_on_wake??null;
+          rhr = rec.score?.resting_heart_rate??null;
+        }
+      } catch(e){}
+
+      records.push({
+        id: cycleId,
+        date,
+        recovery_score,
+        hrv_rmssd_on_wake: hrv,
+        resting_heart_rate: rhr,
+        strain: cycle.score?.strain??null,
+        created_at: cycle.start,
+      });
+    }
+
+    // Step 3: Get sleep separately for duration
+    const sleepRes = await fetch(`${backendUrl}/whoop/api`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({endpoint:'/v1/activity/sleep',token,params:{limit:'25'}})
+    });
+    const sleepData = sleepRes.ok ? await sleepRes.json() : {records:[]};
+    console.log('[Whoop] Sleep response:', JSON.stringify(sleepData).slice(0,200));
+
+    // Merge sleep duration into records
     (sleepData.records||[]).forEach(s=>{
       const date = s.start?.slice(0,10);
       const existing = records.find(r=>r.date===date);
       const hours = s.score?.stage_summary?.total_in_bed_time_milli
         ? Math.round(s.score.stage_summary.total_in_bed_time_milli/360000)/10 : null;
-      if(existing){ existing.sleep_duration_hours=hours; }
-      else if(date){ records.push({date,sleep_duration_hours:hours}); }
-    });
-
-    // Merge strain
-    (cycleData.records||[]).forEach(c=>{
-      const date = c.start?.slice(0,10);
-      const existing = records.find(r=>r.date===date);
-      if(existing) existing.strain = c.score?.strain;
+      if(existing) existing.sleep_duration_hours = hours;
+      else if(date) records.push({date, sleep_duration_hours:hours});
     });
 
     if(records.length === 0){
