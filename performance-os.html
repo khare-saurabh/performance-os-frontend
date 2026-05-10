@@ -203,9 +203,11 @@ async function dbGet(store) {
 }
 async function dbPut(store,item) {
   return new Promise(r => {
-    const req = db.transaction(store,'readwrite').objectStore(store).put(item);
-    req.onsuccess = () => r(req.result);
-    req.onerror = () => r(null);
+    try {
+      const req = db.transaction(store,'readwrite').objectStore(store).put(item);
+      req.onsuccess = () => r(req.result);
+      req.onerror = (e) => { console.error(`[dbPut] ${store} failed:`, e.target.error, item); r(null); };
+    } catch(e) { console.error(`[dbPut] ${store} exception:`, e, item); r(null); }
   });
 }
 async function dbDelete(store,id) {
@@ -1313,19 +1315,30 @@ async function syncWhoop(){
     // Ensure every record has an id (required by IndexedDB keyPath)
     records.forEach((r,i) => { if(!r.id) r.id = Date.now() + i; });
 
-    // Save to IndexedDB
+    console.log(`[Whoop] About to save ${records.length} records:`, records.slice(0,2));
+
+    // Save to IndexedDB — await each put
     await dbClear('whoop_data');
-    for(const r of records) await dbPut('whoop_data',{...r});
-    STATE.whoop.data = records;
+    for(const r of records){
+      await dbPut('whoop_data', {...r});
+    }
+
+    // Verify saved correctly
+    const saved = await dbGet('whoop_data');
+    console.log(`[Whoop] Verified ${saved.length} records in IndexedDB`);
+
+    STATE.whoop.data = saved.length > 0 ? saved : records;
     STATE.whoop.connected = true;
     localStorage.setItem('whoop_last_sync', new Date().toISOString());
-    await autoPopulateFromWhoop(records);
-    renderWhoop(document.getElementById('tab-content'));
-    // Re-render overview to update today tiles
-    if(document.querySelector('.tab-btn.active')?.textContent.toLowerCase().includes('overview')){
-      renderOverview(document.getElementById('tab-content'));
-    }
-    console.log(`[Whoop] Synced ${records.length} records ✓`);
+    await autoPopulateFromWhoop(STATE.whoop.data);
+
+    // Re-render whatever tab is currently active
+    const activeTab = document.querySelector('.tab-btn.active')?.textContent.toLowerCase().trim();
+    const el = document.getElementById('tab-content');
+    if(activeTab?.includes('whoop')) renderWhoop(el);
+    else if(activeTab?.includes('overview')) renderOverview(el);
+
+    console.log(`[Whoop] Synced ${STATE.whoop.data.length} records ✓`);
   } catch(err){
     console.error('Whoop sync error:',err);
     alert('Sync failed: '+err.message);
