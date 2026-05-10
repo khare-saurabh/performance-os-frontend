@@ -1083,9 +1083,6 @@ function renderWhoop(el){
   const strain   = fmt(todayRec.strain);
 
   el.innerHTML=`
-    <!-- DEBUG BAR -->
-    <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:9px;color:#555;font-family:monospace;word-break:break-all">${debugInfo}</div>
-
     <!-- Connection card -->
     <div class="connector-card" style="border-color:${connected?'rgba(179,136,255,0.2)':'rgba(255,255,255,0.07)'};margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1320,11 +1317,15 @@ async function syncWhoop(){
     }));
 
     (cycleData.records||[]).forEach(c=>{
-      const date = c.start?.slice(0,10);
-      const existing = records.find(r=>r.date===date);
+      // Match by cycle_id (most accurate) — recovery record has id=cycle_id
+      const byId = records.find(r=>r.id === c.id);
+      // Fall back: cycle starts night before, recovery date = cycle start + 1 day
+      const cycleDate = c.start?.slice(0,10);
+      const nextDay = cycleDate ? new Date(new Date(cycleDate).getTime()+86400000).toISOString().slice(0,10) : null;
+      const existing = byId || records.find(r=>r.date===nextDay) || records.find(r=>r.date===cycleDate);
       const strain = c.score?.strain ?? null;
       if(existing) existing.strain = strain;
-      else if(date) records.push({date, strain, id: c.id});
+      else if(cycleDate) records.push({date: nextDay||cycleDate, strain, id: c.id});
     });
 
     (sleepData.records||[]).filter(s=>!s.nap).forEach(s=>{
