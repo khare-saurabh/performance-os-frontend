@@ -1131,6 +1131,10 @@ function connectWhoop(){
     alert('Please enter your Railway backend URL first');
     return;
   }
+  // Clear any stale tokens before starting fresh
+  localStorage.removeItem('whoop_access_token');
+  localStorage.removeItem('whoop_refresh_token');
+  localStorage.removeItem('whoop_expires_at');
   // Redirect to backend which redirects to Whoop OAuth
   window.location.href = `${backendUrl}/whoop/auth`;
 }
@@ -1215,9 +1219,12 @@ async function syncWhoop(){
     });
 
     if(records.length === 0){
-      // Token likely expired and refresh didn't work — show helpful message
-      alert('Whoop returned no data. Your token may have expired — please reconnect Whoop.');
-      STATE.whoop.connected = false;
+      console.warn('[Whoop] No records returned — API may have returned empty data');
+      // Don't disconnect — token may be valid but no data yet
+      // Just show empty state
+      await dbClear('whoop_data');
+      STATE.whoop.data = [];
+      localStorage.setItem('whoop_last_sync', new Date().toISOString());
       renderWhoop(document.getElementById('tab-content'));
       return;
     }
