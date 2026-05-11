@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fix 11 May Food Log</title>
+<style>
+  body{background:#080808;color:#e0e0e0;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box}
+  .card{background:#0c0c0c;border:1px solid #1a1a1a;border-radius:16px;padding:28px;max-width:480px;width:100%}
+  h2{font-size:16px;color:#00ff88;margin:0 0 4px;letter-spacing:1px}
+  .sub{font-size:12px;color:#444;margin-bottom:20px}
+  .meal{background:rgba(255,255,255,0.03);border:1px solid #111;border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .meal-name{font-size:11px;color:#888}
+  .macros{font-size:11px;font-family:monospace;color:#555}
+  .p{color:#00ff88}.k{color:#ff9500}
+  .total{background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.12);border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;justify-content:space-between}
+  .total-label{font-size:10px;color:#555;margin-bottom:2px}
+  .total-val{font-size:16px;font-family:monospace}
+  .warn{background:rgba(255,150,0,0.05);border:1px solid rgba(255,150,0,0.2);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#ff9500}
+  button{width:100%;background:#00ff88;color:#000;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;font-family:inherit}
+  button:disabled{background:#1a1a1a;color:#333;cursor:default}
+  #status{margin-top:16px;font-size:13px;text-align:center;min-height:20px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>PERFORMANCE OS</h2>
+  <div class="sub">Fix duplicate food entries · 11 May 2026</div>
+
+  <div class="warn">⚠ This will clear the Railway queue for 11 May and push the correct 5 meals. You'll also need to clear today's food in the app manually via the Food Diary tab.</div>
+
+  <div class="total">
+    <div><div class="total-label">Protein</div><div class="total-val" style="color:#00ff88">194g</div></div>
+    <div><div class="total-label">Calories</div><div class="total-val" style="color:#ff9500">1,605</div></div>
+    <div><div class="total-label">Target</div><div class="total-val" style="color:#333">162 / 1,700</div></div>
+  </div>
+
+  <div class="meal"><span class="meal-name">🍳 Breakfast</span><span class="macros"><span class="p">20g</span> <span class="k">320</span></span></div>
+  <div class="meal"><span class="meal-name">🥤 Post-session shake</span><span class="macros"><span class="p">24g</span> <span class="k">180</span></span></div>
+  <div class="meal"><span class="meal-name">🍗 Lunch — Petticoat Lane</span><span class="macros"><span class="p">51g</span> <span class="k">420</span></span></div>
+  <div class="meal"><span class="meal-name">🍫 David bar</span><span class="macros"><span class="p">28g</span> <span class="k">150</span></span></div>
+  <div class="meal"><span class="meal-name">🍗 Dinner — Nando's</span><span class="macros"><span class="p">71g</span> <span class="k">535</span></span></div>
+
+  <button id="btn" onclick="fixAndPush()">Clear duplicates + repush</button>
+  <div id="status"></div>
+</div>
+
+<script>
+const BACKEND = 'https://performance-os-backend-production.up.railway.app';
+const API_KEY = 'anything';
+const DATE = '2026-05-11';
+
+const MEALS = [
+  {date:DATE,meal:'breakfast',items:'3 boiled eggs · Banana · Black coffee',protein:20,calories:320,notes:'Pre-session fuel'},
+  {date:DATE,meal:'snack',items:'Vanilla Whey 30g · Creatine 5g · Coconut water · Cinnamon — Surreal Bishopsgate (post-session)',protein:24,calories:180,notes:'Post-session shake'},
+  {date:DATE,meal:'lunch',items:'Chicken tikka + salad — Petticoat Lane',protein:51,calories:420,notes:'EA pickup'},
+  {date:DATE,meal:'snack',items:'David bar (28g protein / 150 kcal / 0g sugar)',protein:28,calories:150,notes:'3pm snack'},
+  {date:DATE,meal:'dinner',items:"Nando's — chicken breast ×2 · broccoli · 4-5 regular chips · 3-4 sweet potato chips",protein:71,calories:535,notes:"Nando's dinner"}
+];
+
+async function fixAndPush(){
+  const btn=document.getElementById('btn');
+  const status=document.getElementById('status');
+  btn.disabled=true; btn.textContent='Working...';
+
+  try{
+    // Step 1: Clear queue for today
+    status.style.color='#555'; status.textContent='Clearing old queue...';
+    await fetch(`${BACKEND}/food/clear`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({date:DATE, apiKey:API_KEY})
+    });
+
+    // Step 2: Push correct meals
+    status.textContent='Pushing 5 meals...';
+    const res = await fetch(`${BACKEND}/food/log`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({apiKey:API_KEY, entries:MEALS})
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+
+    status.style.color='#00ff88';
+    status.innerHTML=`✓ Queue cleared + ${data.added.length} meals pushed<br>
+      <span style="color:#555;font-size:11px">Now open the app → Food Diary → delete any duplicate entries → reload</span>`;
+    btn.textContent='✓ Done';
+    btn.style.cssText='background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid rgba(0,255,136,0.3);width:100%;border-radius:10px;padding:14px;font-size:14px;font-family:inherit';
+  }catch(e){
+    status.style.color='#ff4444'; status.textContent='✗ '+e.message;
+    btn.disabled=false; btn.textContent='Retry';
+  }
+}
+</script>
+</body>
+</html>

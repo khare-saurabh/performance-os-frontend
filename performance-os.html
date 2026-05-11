@@ -292,10 +292,11 @@ async function syncFoodFromBackend() {
 
     const idsToAck = [];
     for(const entry of data.entries) {
-      // Check if already synced (same date + meal + items)
+      // Deduplicate: skip if same date + meal + similar protein already exists
       const exists = STATE.food.find(f =>
-        f.date === entry.date && f.meal === entry.meal &&
-        f.items === entry.items
+        f.date === entry.date &&
+        f.meal === entry.meal &&
+        Math.abs((f.protein||0) - (entry.protein||0)) < 5
       );
       if(!exists) {
         const { id: serverId, pushedAt, ...foodEntry } = entry;
