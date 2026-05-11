@@ -671,7 +671,7 @@ function renderOverview(el){
   const recovery=todayEntry.recovery??whoopToday.recovery_score??null;
   const hrv=todayEntry.hrv??(whoopToday.hrv_rmssd_on_wake?Math.round(whoopToday.hrv_rmssd_on_wake):null)??null;
   const rhr=todayEntry.rhr??whoopToday.resting_heart_rate??null;
-  const strain=whoopToday.strain??null;
+  const strain = whoopToday.strain!=null ? Math.round(whoopToday.strain*10)/10 : null;
   const sleep=whoopToday.sleep_duration_hours??null;
   const recColor=recovery>=67?'#00ff88':recovery>=34?'#ff9500':'#ff4444';
 
@@ -876,33 +876,46 @@ function renderTraining(el){
 }
 
 function renderNutrition(el){
-  const sorted=getSorted().filter(e=>e.protein);
+  // Build daily totals from STATE.food (actual food diary)
+  const dailyMap = {};
+  STATE.food.forEach(f=>{
+    if(!f.date) return;
+    if(!dailyMap[f.date]) dailyMap[f.date] = {date:f.date, protein:0, calories:0};
+    dailyMap[f.date].protein += f.protein||0;
+    dailyMap[f.date].calories += f.calories||0;
+  });
+  const sorted = Object.values(dailyMap).sort((a,b)=>a.date>b.date?1:-1);
+  const latest = sorted[sorted.length-1]||{};
+
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-      ${miniCard('protein','Daily Protein',getVal('protein'),'g','#00ff88','155g')}
-      ${miniCard('calories','Daily Calories',getVal('totalCalories'),'kcal','#ff9500','')}
+      ${miniCard('protein','Daily Protein',latest.protein||null,'g','#00ff88','155g')}
+      ${miniCard('calories','Daily Calories',latest.calories||null,'kcal','#ff9500','')}
     </div>
     <div class="card" style="margin-bottom:14px">
       <div class="label">Protein vs Targets — All Time</div>
       <canvas id="prot_chart" width="600" height="150" style="width:100%;height:auto;margin-top:10px"></canvas>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f" class="label">Daily Log</div>
+      <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f;display:flex;justify-content:space-between">
+        <div class="label">Daily Log</div>
+        <span style="font-size:10px;color:#444">${sorted.length} days</span>
+      </div>
       ${[...sorted].reverse().map(e=>`<div style="padding:9px 16px;border-bottom:1px solid #0a0a0a;display:flex;justify-content:space-between">
         <span class="mono" style="color:#333;font-size:10px">${e.date}</span>
         <div style="display:flex;gap:12px">
-          <span class="mono" style="font-size:12px;color:${e.protein>=155?'#00ff88':e.protein>=140?'#ff9500':'#ff4444'}">${e.protein}g</span>
-          ${e.totalCalories?`<span class="mono" style="font-size:12px;color:#444">${e.totalCalories}kcal</span>`:''}
+          <span class="mono" style="font-size:12px;color:${e.protein>=162?'#00ff88':e.protein>=140?'#ff9500':'#ff4444'}">${e.protein}g</span>
+          ${e.calories?`<span class="mono" style="font-size:12px;color:#444">${e.calories}kcal</span>`:''}
         </div>
-      </div>`).join('')}
+      </div>`).join('')||'<div style="padding:20px;text-align:center;color:#333;font-size:12px">No food logged yet</div>'}
     </div>`;
   requestAnimationFrame(()=>{
     const canvas=document.getElementById('prot_chart');if(!canvas||sorted.length<2)return;
     const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height,pad=22;
     ctx.clearRect(0,0,W,H);
-    const vals=sorted.map(d=>d.protein),min=100,max=210,range=max-min;
+    const vals=sorted.map(d=>d.protein),min=100,max=220,range=max-min;
     const x=i=>pad+(i/(sorted.length-1))*(W-pad*2),y=v=>H-pad-((v-min)/range)*(H-pad*2);
-    [140,165].forEach((ref,i)=>{
+    [140,162].forEach((ref,i)=>{
       ctx.strokeStyle=i?'#00ff8830':'#ff950030';ctx.lineWidth=1;ctx.setLineDash([4,4]);
       ctx.beginPath();ctx.moveTo(pad,y(ref));ctx.lineTo(W-pad,y(ref));ctx.stroke();ctx.setLineDash([]);
     });
@@ -913,7 +926,9 @@ function renderNutrition(el){
     ctx.beginPath();ctx.moveTo(x(0),y(vals[0]));for(let i=1;i<vals.length;i++)ctx.lineTo(x(i),y(vals[i]));
     ctx.strokeStyle='#00ff88';ctx.lineWidth=2;ctx.stroke();
     vals.forEach((v,i)=>{ctx.beginPath();ctx.arc(x(i),y(v),2.5,0,Math.PI*2);ctx.fillStyle='#00ff88';ctx.fill();});
-    drawSparklines('nutrition');
+    // x labels
+    ctx.fillStyle='#333';ctx.font='8px monospace';ctx.textAlign='center';
+    sorted.forEach((d,i)=>{if(i%(Math.ceil(sorted.length/6))===0)ctx.fillText(d.date.slice(5),x(i),H-4);});
   });
 }
 
