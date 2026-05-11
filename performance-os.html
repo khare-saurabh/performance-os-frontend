@@ -654,9 +654,15 @@ function renderOverview(el){
   const todayFood=STATE.food.filter(f=>f.date===today);
   const todayProtein=todayFood.reduce((a,f)=>a+(+f.protein||0),0);
   const todayKcal=todayFood.reduce((a,f)=>a+(+f.calories||0),0);
-  const isRest=!todayEntry.volume;
-  const proteinTarget=isRest?140:162;
-  const kcalTarget=isRest?1450:1700;
+  const isRest = todayEntry.sessionType 
+    ? (todayEntry.sessionType === 'Rest') 
+    : (['Rings','Handstand','Planche','Bars'].includes(todayEntry.sessionType) || !!todayEntry.volume)
+      ? false
+      : true; // default to rest if no entry
+  const proteinTarget = isRest ? 140 : 162;
+  const kcalTarget = isRest ? 1450 : 1700;
+  // Override session type display for today if we know it
+  const todaySessionDisplay = todayEntry.sessionType || 'Rest Day';
 
   // Pull latest Whoop data (today or most recent)
   const whoopSorted=[...STATE.whoop.data].sort((a,b)=>a.date<b.date?1:-1);
@@ -1633,18 +1639,35 @@ function renderSettings(el){
 // ADD / SAVE ENTRY
 // ═══════════════════════════════════════════
 function openAddEntry(){
+  const today = new Date().toISOString().split('T')[0];
+  const existing = STATE.entries.find(e=>e.date===today)||{};
+  const whoopToday = STATE.whoop.data.find(d=>d.date===today)||{};
+  const pre = {
+    date: today,
+    weight: existing.weight || '',
+    hrv: existing.hrv || (whoopToday.hrv_rmssd_on_wake ? Math.round(whoopToday.hrv_rmssd_on_wake) : ''),
+    rhr: existing.rhr || whoopToday.resting_heart_rate || '',
+    recovery: existing.recovery || whoopToday.recovery_score || '',
+    volume: existing.volume || '',
+    sessionCalories: existing.sessionCalories || '',
+    load: existing.load || '',
+    protein: existing.protein || '',
+    totalCalories: existing.totalCalories || '',
+    sessionType: existing.sessionType || 'Handstand',
+    notes: existing.notes || '',
+  };
   document.getElementById('add-form').innerHTML=[
-    ['Date','date','date',''],['Weight (kg)','weight','number','66.2'],
-    ['HRV (ms)','hrv','number','47'],['RHR (bpm)','rhr','number','53'],
-    ['Recovery (%)','recovery','number','72'],['Volume (kg)','volume','number','9694'],
-    ['Session Calories','sessionCalories','number','273'],['Load','load','number','18'],
-    ['Protein (g)','protein','number','165'],['Total Calories','totalCalories','number','1600'],
-  ].map(([l,k,t,p])=>`<div><label class="label">${l}</label><input type="${t}" class="input" id="ef_${k}" placeholder="${p}" ${k==='date'?`value="${new Date().toISOString().split('T')[0]}"`:''} style="font-family:monospace"></div>`
+    ['Date','date','date',''],['Weight (kg)','weight','number','66.7'],
+    ['HRV (ms)','hrv','number','56'],['RHR (bpm)','rhr','number','50'],
+    ['Recovery (%)','recovery','number','97'],['Volume (kg)','volume','number','13303'],
+    ['Session Calories','sessionCalories','number','204'],['Load','load','number','11'],
+    ['Protein (g)','protein','number','162'],['Total Calories','totalCalories','number','1700'],
+  ].map(([l,k,t,p])=>`<div><label class="label">${l}</label><input type="${t}" class="input" id="ef_${k}" placeholder="${p}" value="${pre[k]||''}" ${k==='date'?`value="${today}"`:''} style="font-family:monospace"></div>`
   ).join('')+`
     <div style="grid-column:1/-1"><label class="label">Session Type</label>
-      <select class="input" id="ef_sessionType">${['Rings','Handstand','Planche','Bars','Bouldering','Golf','Treadmill','Rest'].map(s=>`<option>${s}</option>`).join('')}</select></div>
+      <select class="input" id="ef_sessionType">${['Rings','Handstand','Planche','Bars','Bouldering','Golf','Treadmill','Rest'].map(s=>`<option ${s===pre.sessionType?'selected':''}>${s}</option>`).join('')}</select></div>
     <div style="grid-column:1/-1"><label class="label">Notes</label>
-      <textarea class="input" id="ef_notes" rows="2" placeholder="Session highlights..."></textarea></div>`;
+      <textarea class="input" id="ef_notes" rows="2" placeholder="Session highlights...">${pre.notes}</textarea></div>`;
   document.getElementById('add-entry-modal').style.display='flex';
 }
 
@@ -1656,9 +1679,18 @@ async function saveEntry(){
   const entry={date:g('date'),weight:n('weight'),hrv:n('hrv'),rhr:n('rhr'),recovery:n('recovery'),
     sessionType:g('sessionType'),volume:n('volume'),sessionCalories:n('sessionCalories'),
     load:n('load'),protein:n('protein'),totalCalories:n('totalCalories'),notes:g('notes')||''};
-  const id=await dbPut('entries',entry);entry.id=id;STATE.entries.push(entry);
+  // Check if entry for this date already exists — update it
+  const existing = STATE.entries.find(e=>e.date===entry.date);
+  if(existing) {
+    entry.id = existing.id;
+    await dbPut('entries', entry);
+    const idx = STATE.entries.indexOf(existing);
+    STATE.entries[idx] = entry;
+  } else {
+    const id=await dbPut('entries',entry);entry.id=id;STATE.entries.push(entry);
+  }
   closeAddEntry();
-  renderTab(document.querySelector('.tab-btn.active')?.textContent.toLowerCase()||'overview');
+  renderTab(document.querySelector('.tab-btn.active')?.textContent.toLowerCase().trim()||'overview');
 }
 
 async function saveFood(){
