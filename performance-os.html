@@ -726,7 +726,7 @@ function renderOverview(el){
   <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 16px;margin-bottom:10px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="label" style="margin:0;color:${SESSION_COLORS[sessionType]||'#555'}">⌚ ${sessionType} · Garmin</div>
-      ${strain!=null?`<div style="font-size:10px;color:#555">Strain <span class="mono" style="color:#ff6b6b">${strain}</span></div>`:''}
+      ${strain!=null?`<div style="font-size:10px;color:#555">Strain <span class="mono" style="color:#ff6b6b">${Math.round(strain*10)/10}</span></div>`:''}
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap">
       ${sessionVol?`<div><div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px">Volume</div><div class="mono" style="font-size:18px;color:#ff6b6b">${sessionVol.toLocaleString()}<span style="font-size:10px;color:#444;margin-left:2px">kg</span></div></div>`:''}
@@ -734,7 +734,7 @@ function renderOverview(el){
       ${sessionLoad?`<div><div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px">Load</div><div class="mono" style="font-size:18px;color:#888">${sessionLoad}</div></div>`:''}
       ${todayEntry.avgHr?`<div><div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px">Avg HR</div><div class="mono" style="font-size:18px;color:#ff9500">${todayEntry.avgHr}<span style="font-size:10px;color:#444;margin-left:2px">bpm</span></div></div>`:''}
     </div>
-    ${todayEntry.notes?`<div style="font-size:11px;color:#333;margin-top:10px;line-height:1.6;padding-top:8px;border-top:1px solid #0f0f0f">${todayEntry.notes}</div>`:''}
+    ${todayEntry.notes && !todayEntry.notes.startsWith('Auto-imported')?`<div style="font-size:11px;color:#333;margin-top:10px;line-height:1.6;padding-top:8px;border-top:1px solid #0f0f0f">${todayEntry.notes}</div>`:''}
   </div>`:`<div style="background:rgba(255,255,255,0.015);border:1px solid #0f0f0f;border-radius:10px;padding:11px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
     <div style="font-size:12px;color:#2a2a2a">No session today</div>
     <div style="font-size:10px;color:#1a1a1a">Next: Day 1 Rings</div>
@@ -1665,7 +1665,7 @@ function openAddEntry(){
   ].map(([l,k,t,p])=>`<div><label class="label">${l}</label><input type="${t}" class="input" id="ef_${k}" placeholder="${p}" value="${pre[k]||''}" ${k==='date'?`value="${today}"`:''} style="font-family:monospace"></div>`
   ).join('')+`
     <div style="grid-column:1/-1"><label class="label">Session Type</label>
-      <select class="input" id="ef_sessionType">${['Rings','Handstand','Planche','Bars','Bouldering','Golf','Treadmill','Rest'].map(s=>`<option ${s===pre.sessionType?'selected':''}>${s}</option>`).join('')}</select></div>
+      <select class="input" id="ef_sessionType">${['Rings','Handstand','Planche','Bars','Bouldering','Golf','Freestyle/Hybrid','Cardio/Treadmill','Rest'].map(s=>`<option ${s===pre.sessionType?'selected':''}>${s}</option>`).join('')}</select></div>
     <div style="grid-column:1/-1"><label class="label">Notes</label>
       <textarea class="input" id="ef_notes" rows="2" placeholder="Session highlights...">${pre.notes}</textarea></div>`;
   document.getElementById('add-entry-modal').style.display='flex';

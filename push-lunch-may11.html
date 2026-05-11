@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log Lunch 11 May</title>
+<style>
+  body{background:#080808;color:#e0e0e0;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box}
+  .card{background:#0c0c0c;border:1px solid #1a1a1a;border-radius:16px;padding:28px;max-width:480px;width:100%}
+  h2{font-size:16px;color:#00ff88;margin:0 0 4px;letter-spacing:1px}
+  .sub{font-size:12px;color:#444;margin-bottom:24px}
+  .meal{background:rgba(255,255,255,0.03);border:1px solid #111;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+  .meal-name{font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+  .meal-items{font-size:12px;color:#666;line-height:1.5;margin-bottom:6px}
+  .macros{display:flex;gap:12px;font-size:11px;font-family:monospace}
+  .p{color:#00ff88}.k{color:#ff9500}
+  button{width:100%;background:#00ff88;color:#000;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;font-family:inherit}
+  button:disabled{background:#1a1a1a;color:#333;cursor:default}
+  #status{margin-top:16px;font-size:13px;text-align:center;min-height:20px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>PERFORMANCE OS</h2>
+  <div class="sub">Monday 11 May · Lunch</div>
+
+  <div class="meal">
+    <div class="meal-name" style="color:#ff9500">Lunch</div>
+    <div class="meal-items">Chicken tikka + salad — Petticoat Lane</div>
+    <div class="macros"><span class="p">P 51g</span><span class="k">420 kcal</span></div>
+  </div>
+
+  <button id="btn" onclick="push()">Push to Performance OS</button>
+  <div id="status"></div>
+</div>
+<script>
+async function push(){
+  const btn=document.getElementById('btn');
+  const status=document.getElementById('status');
+  btn.disabled=true;btn.textContent='Pushing...';
+  try{
+    const res=await fetch('https://performance-os-backend-production.up.railway.app/food/log',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({apiKey:'anything',entries:[{
+        date:'2026-05-11',meal:'lunch',
+        items:'Chicken tikka + salad — Petticoat Lane',
+        protein:51,calories:420,
+        notes:'EA pickup. Petticoat Lane chicken tikka.'
+      }]})
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    status.style.color='#00ff88';
+    status.innerHTML='✓ Lunch pushed — open app to sync';
+    btn.textContent='✓ Done';btn.style.background='rgba(0,255,136,0.15)';btn.style.color='#00ff88';
+  }catch(e){
+    status.style.color='#ff4444';status.textContent='✗ '+e.message;
+    btn.disabled=false;btn.textContent='Retry';
+  }
+}
+</script>
+</body>
+</html>
