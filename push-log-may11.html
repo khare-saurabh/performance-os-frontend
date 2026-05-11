@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log 11 May</title>
+<style>
+  body { background:#080808; color:#e0e0e0; font-family:-apple-system,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; padding:20px; box-sizing:border-box; }
+  .card { background:#0c0c0c; border:1px solid #1a1a1a; border-radius:16px; padding:28px; max-width:480px; width:100%; }
+  h2 { font-size:16px; color:#00ff88; margin:0 0 4px; letter-spacing:1px; }
+  .sub { font-size:12px; color:#444; margin-bottom:24px; }
+  .item { background:rgba(255,255,255,0.03); border:1px solid #111; border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  .item-name { font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:4px; color:#555; }
+  .item-detail { font-size:12px; color:#888; line-height:1.5; }
+  .macros { display:flex; gap:12px; font-size:11px; font-family:monospace; margin-top:6px; }
+  .p { color:#00ff88; } .k { color:#ff9500; }
+  button { width:100%; background:#00ff88; color:#000; border:none; border-radius:10px; padding:14px; font-size:14px; font-weight:700; cursor:pointer; margin-top:8px; font-family:inherit; }
+  button:disabled { background:#1a1a1a; color:#333; cursor:default; }
+  #status { margin-top:16px; font-size:13px; text-align:center; min-height:20px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>PERFORMANCE OS</h2>
+  <div class="sub">Monday 11 May 2026 · Morning log</div>
+
+  <div class="item">
+    <div class="item-name" style="color:#ffd43b">Breakfast</div>
+    <div class="item-detail">3 boiled eggs · Banana (medium) · Black coffee</div>
+    <div class="macros"><span class="p">P 20g</span><span class="k">320 kcal</span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-name" style="color:#00d4ff">Post-session shake</div>
+    <div class="item-detail">Vanilla Whey 30g · Creatine 5g · Coconut water · Cinnamon — Surreal Bishopsgate</div>
+    <div class="macros"><span class="p">P 24g</span><span class="k">180 kcal</span></div>
+  </div>
+
+  <div class="item" style="border-color:rgba(0,255,136,0.15)">
+    <div class="item-name" style="color:#00ff88">Session · Day 2 Handstand</div>
+    <div class="item-detail">
+      Deficit Pike Push-Ups 5×10 (24+18" box) · Box Press to HS 5×10 · Pike Compression 5×10s · Freestanding HS Practice 8 sets · Shoulder Taps 3×11<br>
+      Duration: 1:00:32 · Work: 22:08 · Volume: 13,303kg · Sets: 28 · Reps: 242<br>
+      Avg HR: 97bpm · Max HR: 135bpm · Load: 11 · Calories: 204
+    </div>
+  </div>
+
+  <button id="btn" onclick="pushLog()">Push to Performance OS</button>
+  <div id="status"></div>
+</div>
+
+<script>
+const BACKEND = 'https://performance-os-backend-production.up.railway.app';
+const API_KEY = 'anything';
+const TODAY = '2026-05-11';
+
+async function pushLog() {
+  const btn = document.getElementById('btn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Pushing...';
+  status.style.color = '#555';
+  status.textContent = 'Connecting...';
+
+  try {
+    // Push food entries
+    const foodRes = await fetch(`${BACKEND}/food/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: API_KEY,
+        entries: [
+          {
+            date: TODAY, meal: 'breakfast',
+            items: '3 boiled eggs · Banana (medium) · Black coffee',
+            protein: 20, calories: 320,
+            notes: 'Pre-session fuel'
+          },
+          {
+            date: TODAY, meal: 'snack',
+            items: 'Vanilla Whey 30g · Creatine 5g · Coconut water · Cinnamon — Surreal Bishopsgate (post-session)',
+            protein: 24, calories: 180,
+            notes: 'Post-session shake. Free reward. Swapped nut butter/coconut milk for coconut water only.'
+          }
+        ]
+      })
+    });
+
+    if (!foodRes.ok) throw new Error(`Food: HTTP ${foodRes.status}`);
+    const foodData = await foodRes.json();
+
+    status.style.color = '#00ff88';
+    status.innerHTML = `✓ ${foodData.added.length} food entries pushed<br>
+      <span style="color:#444;font-size:11px">Open app to sync · Lunch to follow</span>`;
+    btn.textContent = '✓ Done';
+    btn.style.background = 'rgba(0,255,136,0.15)';
+    btn.style.color = '#00ff88';
+    btn.style.border = '1px solid rgba(0,255,136,0.3)';
+
+  } catch(err) {
+    status.style.color = '#ff4444';
+    status.textContent = '✗ ' + err.message;
+    btn.disabled = false;
+    btn.textContent = 'Retry';
+  }
+}
+</script>
+</body>
+</html>
