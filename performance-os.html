@@ -482,7 +482,7 @@ const INBODY_HISTORY=[
   {date:"May '26",weight:66.8,muscle:34.9,bodyFat:9.0}
 ];
 
-const SESSION_COLORS={Rings:"#00ff88",Handstand:"#00d4ff",Planche:"#ff9500",Bars:"#ff6b6b",Bouldering:"#b388ff",Golf:"#69db7c",Treadmill:"#ffd43b",Rest:"#333"};
+const SESSION_COLORS={Rings:"#00ff88",Handstand:"#00d4ff",Planche:"#ff9500",Bars:"#ff6b6b",Bouldering:"#b388ff",Golf:"#69db7c",Treadmill:"#ffd43b","Freestyle/Hybrid":"#ff9dce","Cardio/Treadmill":"#ffd43b",Rest:"#333"};
 const MEAL_COLORS={breakfast:"#ffd43b","post-workout":"#00ff88","pre-workout":"#00d4ff","on-course":"#69db7c","pre-golf":"#69db7c",lunch:"#ff9500",snack:"#b388ff",dinner:"#ff6b6b","late-night":"#888"};
 
 // ═══════════════════════════════════════════
@@ -691,17 +691,24 @@ function renderOverview(el){
   const bestW=allW.length?Math.min(...allW):'—';
   const allRecov=[...STATE.whoop.data].filter(d=>d.recovery_score).map(d=>d.recovery_score);
   const avgRecov=allRecov.length?(allRecov.reduce((a,b)=>a+b,0)/allRecov.length).toFixed(0):'—';
-  const weekSessions=s.filter(e=>e.date>='2026-05-05'&&e.sessionType!=='Rest'&&e.volume);
-  const weekVol=weekSessions.reduce((a,e)=>a+(e.volume||0),0);
-  const allVols=s.filter(e=>e.volume).map(e=>e.volume);
-  const avgVol=allVols.length?(allVols.reduce((a,b)=>a+b,0)/allVols.length).toFixed(0):'—';
+  const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const sessionLabel = sessionType 
+    ? sessionType 
+    : '— Training pending';
+  const sessionLabelColor = sessionType ? '#e0e0e0' : '#555';
+
+  // All sessions for block display (include Golf, Bouldering, all types)
+  const blockSessions = s.filter(e=>e.sessionType && e.sessionType!=='Rest' && (e.volume||e.sessionType==='Golf'||e.sessionType==='Bouldering'))
+    .sort((a,b)=>a.date>b.date?1:-1)
+    .slice(-12); // last 12 sessions
+  const blockVol = blockSessions.reduce((a,e)=>a+(e.volume||0),0);
 
   el.innerHTML=`
   <!-- ── TODAY HEADER ── -->
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div>
-      <div style="font-size:9px;letter-spacing:2.5px;color:#00ff88;text-transform:uppercase;margin-bottom:3px">Today · ${today}</div>
-      <div style="font-size:15px;font-weight:600;color:#e0e0e0">${sessionType||'Rest Day'} <span style="font-size:11px;color:#333;font-weight:400">· Block 2</span></div>
+      <div style="font-size:9px;letter-spacing:2.5px;color:#00ff88;text-transform:uppercase;margin-bottom:3px">Today · ${today} · ${DAYS[new Date(today).getDay()]}</div>
+      <div style="font-size:15px;font-weight:600;color:${sessionLabelColor}">${sessionLabel} <span style="font-size:11px;color:#333;font-weight:400">· Block 2</span></div>
     </div>
     <button onclick="document.getElementById('add-food-modal').style.display='flex'" style="background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);color:#00ff88;border-radius:8px;padding:6px 14px;font-size:11px;cursor:pointer;font-family:inherit">+ Log food</button>
   </div>
@@ -813,19 +820,23 @@ function renderOverview(el){
   <!-- ── CURRENT BLOCK ── -->
   <div style="background:rgba(0,255,136,0.02);border:1px solid rgba(0,255,136,0.07);border-radius:12px;padding:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div class="label" style="color:#00ff88;margin:0">Block 2 · Week 1 Complete</div>
+      <div class="label" style="color:#00ff88;margin:0">Block 2 · Recent Sessions</div>
       <div style="display:flex;gap:14px;font-size:10px">
-        <span style="color:#444">Vol <span class="mono" style="color:#00ff88">${weekVol.toLocaleString()}kg</span></span>
+        <span style="color:#444">Vol <span class="mono" style="color:#00ff88">${blockVol.toLocaleString()}kg</span></span>
         <span style="color:#444">InBody <span class="mono" style="color:#00d4ff">88/100</span></span>
-        <span style="color:#444">Avg <span class="mono" style="color:#ff6b6b">${avgVol}kg</span></span>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-      ${weekSessions.map(e=>`<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:9px 10px;border-top:2px solid ${SESSION_COLORS[e.sessionType]||'#333'}">
-        <div style="font-size:8px;color:${SESSION_COLORS[e.sessionType]};letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${e.sessionType}</div>
-        <div style="font-size:9px;color:#2a2a2a;margin-bottom:3px">${e.date.slice(5)}</div>
-        ${e.volume?`<div class="mono" style="font-size:12px">${e.volume.toLocaleString()}<span style="font-size:8px;color:#333;margin-left:1px">kg</span></div>`:''}
-      </div>`).join('')}
+      ${blockSessions.map(e=>{
+        const d = new Date(e.date);
+        const label = `${(d.getMonth()+1)}-${String(d.getDate()).padStart(2,'0')}, ${DAYS[d.getDay()]}`;
+        return `<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:9px 10px;border-top:2px solid ${SESSION_COLORS[e.sessionType]||'#333'}">
+          <div style="font-size:8px;color:${SESSION_COLORS[e.sessionType]||'#555'};letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${e.sessionType}</div>
+          <div style="font-size:8px;color:#444;margin-bottom:3px">${label}</div>
+          ${e.volume?`<div class="mono" style="font-size:12px">${e.volume.toLocaleString()}<span style="font-size:8px;color:#333;margin-left:1px">kg</span></div>`:
+          `<div style="font-size:10px;color:#333">${e.sessionType==='Golf'?'⛳':e.sessionType==='Bouldering'?'🧗':'—'}</div>`}
+        </div>`;
+      }).join('')}
     </div>
   </div>`;
 }
