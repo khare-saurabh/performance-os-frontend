@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Push Food — 12 May 2026</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+  h2 { margin-bottom: 4px; font-size: 1.1rem; color: #aaa; font-weight: 400; }
+  h1 { margin: 0 0 24px; font-size: 1.6rem; }
+  .items { width: 100%; max-width: 400px; background: #1a1a1a; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2a2a2a; font-size: 0.9rem; }
+  .item:last-child { border-bottom: none; }
+  .item-name { color: #ddd; }
+  .item-macros { color: #888; font-size: 0.8rem; }
+  .totals { width: 100%; max-width: 400px; background: #1e2a1e; border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; justify-content: space-around; }
+  .total-block { text-align: center; }
+  .total-val { font-size: 1.4rem; font-weight: 700; color: #4ade80; }
+  .total-label { font-size: 0.75rem; color: #888; margin-top: 2px; }
+  button { background: #4ade80; color: #000; border: none; border-radius: 10px; padding: 16px 48px; font-size: 1rem; font-weight: 700; cursor: pointer; width: 100%; max-width: 400px; }
+  button:disabled { background: #333; color: #666; cursor: default; }
+  #status { margin-top: 16px; font-size: 0.9rem; color: #888; text-align: center; }
+</style>
+</head>
+<body>
+<h2>Performance OS</h2>
+<h1>Food Log — 12 May 2026</h1>
+
+<div class="items">
+  <div class="item"><span class="item-name">🥚 Breakfast — 3 boiled eggs + banana</span><span class="item-macros">20g · 320 kcal</span></div>
+  <div class="item"><span class="item-name">🥤 Post-session shake (Surreal)</span><span class="item-macros">24g · 180 kcal</span></div>
+  <div class="item"><span class="item-name">🍗 Mr Bombay — chicken tikka + tawa sabzi</span><span class="item-macros">49g · 410 kcal</span></div>
+  <div class="item"><span class="item-name">🍫 David bar</span><span class="item-macros">28g · 150 kcal</span></div>
+  <div class="item"><span class="item-name">🍗 Simple Health peri peri chicken + sweet potato + broccoli</span><span class="item-macros">44g · 385 kcal</span></div>
+</div>
+
+<div class="totals">
+  <div class="total-block"><div class="total-val">165g</div><div class="total-label">Protein</div></div>
+  <div class="total-block"><div class="total-val">1,445</div><div class="total-label">Calories</div></div>
+  <div class="total-block"><div class="total-val">✅</div><div class="total-label">Target hit</div></div>
+</div>
+
+<button id="pushBtn" onclick="pushFood()">Push to App</button>
+<div id="status"></div>
+
+<script>
+const entries = [
+  { name: "Breakfast — 3 boiled eggs + banana + coffee", protein: 20, calories: 320, meal: "breakfast" },
+  { name: "Post-session shake — Vanilla Whey + Creatine + Coconut water (Surreal)", protein: 24, calories: 180, meal: "post-workout" },
+  { name: "Mr Bombay — chicken tikka + tawa sabzi", protein: 49, calories: 410, meal: "lunch" },
+  { name: "David bar (snack)", protein: 28, calories: 150, meal: "snack" },
+  { name: "Simple Health peri peri chicken breast + sweet potato + broccoli", protein: 44, calories: 385, meal: "dinner" }
+];
+
+async function pushFood() {
+  const btn = document.getElementById('pushBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Pushing...';
+
+  const date = '2026-05-12';
+  let success = 0;
+
+  for (const entry of entries) {
+    try {
+      const res = await fetch('https://performance-os-backend-production.up.railway.app/food/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': 'anything' },
+        body: JSON.stringify({ ...entry, date })
+      });
+      if (res.ok) success++;
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  if (success === entries.length) {
+    btn.textContent = '✅ All pushed!';
+    btn.style.background = '#4ade80';
+    status.textContent = `${success}/${entries.length} entries pushed successfully`;
+  } else {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    status.textContent = `Only ${success}/${entries.length} succeeded — tap to retry`;
+  }
+}
+</script>
+</body>
+</html>
