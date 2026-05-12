@@ -483,6 +483,7 @@ const INBODY_HISTORY=[
 ];
 
 const SESSION_COLORS={Rings:"#00ff88",Handstand:"#00d4ff",Planche:"#ff9500",Bars:"#ff6b6b",Bouldering:"#b388ff",Golf:"#69db7c",Treadmill:"#ffd43b","Freestyle/Hybrid":"#ff9dce","Cardio/Treadmill":"#ffd43b",Rest:"#333"};
+const SESSION_ICONS={Rings:'🤸',Handstand:'🙃',Planche:'💪',Bars:'🏋️',Golf:'⛳',Bouldering:'🧗','Freestyle/Hybrid':'🔀','Cardio/Treadmill':'🏃',Rest:'😴',Strength:'💪',Running:'🏃',Cycling:'🚴',Swimming:'🏊',Hiking:'🥾'};
 const MEAL_COLORS={breakfast:"#ffd43b","post-workout":"#00ff88","pre-workout":"#00d4ff","on-course":"#69db7c","pre-golf":"#69db7c",lunch:"#ff9500",snack:"#b388ff",dinner:"#ff6b6b","late-night":"#888"};
 
 // ═══════════════════════════════════════════
@@ -688,7 +689,6 @@ function renderOverview(el){
   const allRecov=[...STATE.whoop.data].filter(d=>d.recovery_score).map(d=>d.recovery_score);
   const avgRecov=allRecov.length?(allRecov.reduce((a,b)=>a+b,0)/allRecov.length).toFixed(0):'—';
   const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const SESSION_ICONS={Rings:'🤸',Handstand:'🙃',Planche:'💪',Bars:'🏋️',Golf:'⛳',Bouldering:'🧗','Freestyle/Hybrid':'🔀','Cardio/Treadmill':'🏃',Rest:'😴'};
   const sessionLabel = hasEntry ? todayEntry.sessionType : '— Log today\'s session';
   const sessionLabelColor = hasEntry ? '#e0e0e0' : '#444';
 
