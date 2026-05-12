@@ -843,48 +843,209 @@ function renderOverview(el){
 }
 
 function renderTraining(el){
-  const sorted=getSorted().filter(e=>e.volume);
-  const all=getSorted().filter(e=>e.sessionType!=='Rest').reverse();
-  const counts={};STATE.entries.forEach(e=>{counts[e.sessionType]=(counts[e.sessionType]||0)+1;});
-  el.innerHTML=`
-    <div class="card" style="margin-bottom:14px">
-      <div class="label">Session Volumes — All Time</div>
-      <canvas id="vol_chart" width="600" height="160" style="width:100%;height:auto;margin-top:10px"></canvas>
-    </div>
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
-      <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:10px 16px;border-bottom:1px solid #0f0f0f" class="label">Sessions</div>
-        ${all.slice(0,12).map(e=>`<div style="padding:9px 16px;border-bottom:1px solid #0a0a0a;display:flex;justify-content:space-between;align-items:center">
-          <div style="display:flex;gap:8px;align-items:center">
-            <div style="width:5px;height:5px;border-radius:50%;background:${SESSION_COLORS[e.sessionType]||'#333'}"></div>
-            <span style="color:#999;font-size:12px">${e.sessionType}</span>
-            <span style="color:#2a2a2a;font-size:10px">${e.date.slice(5)}</span>
-          </div>
-          <span class="mono" style="color:#444;font-size:11px">${e.volume?e.volume.toLocaleString()+'kg':e.sessionCalories?e.sessionCalories+'kcal':'—'}</span>
-        </div>`).join('')}
-      </div>
-      <div class="card">
-        <div class="label" style="margin-bottom:12px">By Type</div>
-        ${Object.entries(counts).map(([t,n])=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-          <div style="width:6px;height:6px;border-radius:50%;background:${SESSION_COLORS[t]||'#555'};flex-shrink:0"></div>
-          <div style="font-size:11px;color:#666;flex:1">${t}</div>
-          <span class="mono" style="font-size:11px;color:${SESSION_COLORS[t]||'#555'}">${n}×</span>
-        </div>`).join('')}
-      </div>
-    </div>`;
-  requestAnimationFrame(()=>{
-    const canvas=document.getElementById('vol_chart');if(!canvas||sorted.length<2)return;
-    const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height,pad=20;
-    ctx.clearRect(0,0,W,H);
-    const vals=sorted.map(d=>d.volume),max=Math.max(...vals),bw=(W-pad*2)/sorted.length*0.7;
-    sorted.forEach((d,i)=>{
-      const cx=pad+(i/(sorted.length-1||1))*(W-pad*2),bh=(d.volume/max)*(H-pad*2);
-      ctx.fillStyle=(SESSION_COLORS[d.sessionType]||'#555')+'cc';
-      ctx.beginPath();ctx.roundRect(cx-bw/2,H-pad-bh,bw,bh,2);ctx.fill();
-    });
-    ctx.fillStyle='#333';ctx.font='9px monospace';ctx.textAlign='center';
-    sorted.forEach((d,i)=>{if(i%(Math.ceil(sorted.length/6))===0){const cx=pad+(i/(sorted.length-1||1))*(W-pad*2);ctx.fillText(d.date.slice(5),cx,H-4);}});
+  const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const all = getSorted()
+    .filter(e=>e.sessionType && e.sessionType!=='Rest' && e.sessionType!=='undefined')
+    .sort((a,b)=>a.date<b.date?1:-1);
+
+  const view = el.dataset.view || 'week';
+
+  // ── STATS ──
+  const totalVol = all.filter(e=>e.volume).reduce((a,e)=>a+e.volume,0);
+  const totalSessions = all.length;
+  const avgVol = all.filter(e=>e.volume).length ? Math.round(totalVol/all.filter(e=>e.volume).length) : 0;
+  const counts = {};
+  all.forEach(e=>{ counts[e.sessionType]=(counts[e.sessionType]||0)+1; });
+
+  // ── WEEKLY AGGREGATES ──
+  function getWeekKey(date) {
+    const d = new Date(date+'T12:00:00');
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day===0?-6:1);
+    const mon = new Date(d.setDate(diff));
+    return mon.toISOString().slice(0,10);
+  }
+  const weekMap = {};
+  all.forEach(e=>{
+    const wk = getWeekKey(e.date);
+    if(!weekMap[wk]) weekMap[wk]={week:wk,sessions:[],volume:0,calories:0,types:{}};
+    weekMap[wk].sessions.push(e);
+    weekMap[wk].volume += e.volume||0;
+    weekMap[wk].calories += e.sessionCalories||0;
+    weekMap[wk].types[e.sessionType]=(weekMap[wk].types[e.sessionType]||0)+1;
   });
+  const weeks = Object.values(weekMap).sort((a,b)=>a.week<b.week?1:-1);
+
+  // ── MONTHLY AGGREGATES ──
+  const monthMap = {};
+  all.forEach(e=>{
+    const mo = e.date.slice(0,7);
+    if(!monthMap[mo]) monthMap[mo]={month:mo,sessions:[],volume:0,calories:0,types:{}};
+    monthMap[mo].sessions.push(e);
+    monthMap[mo].volume += e.volume||0;
+    monthMap[mo].calories += e.sessionCalories||0;
+    monthMap[mo].types[e.sessionType]=(monthMap[mo].types[e.sessionType]||0)+1;
+  });
+  const months = Object.values(monthMap).sort((a,b)=>a.month<b.month?1:-1);
+
+  function typeChips(types) {
+    return Object.entries(types).map(([t,n])=>
+      `<span style="background:${SESSION_COLORS[t]||'#222'}22;border:1px solid ${SESSION_COLORS[t]||'#333'}44;color:${SESSION_COLORS[t]||'#555'};border-radius:4px;padding:1px 6px;font-size:9px;letter-spacing:0.5px">${SESSION_ICONS[t]||''} ${t} ${n>1?'×'+n:''}</span>`
+    ).join(' ');
+  }
+
+  el.innerHTML=`
+  <!-- ── HEADER STATS ── -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+    <div style="background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.1);border-radius:10px;padding:12px;text-align:center">
+      <div class="label" style="font-size:8px">Total Sessions</div>
+      <div class="mono" style="font-size:22px;color:#00ff88">${totalSessions}</div>
+    </div>
+    <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.1);border-radius:10px;padding:12px;text-align:center">
+      <div class="label" style="font-size:8px">Total Volume</div>
+      <div class="mono" style="font-size:16px;color:#ff6b6b">${(totalVol/1000).toFixed(0)}t</div>
+    </div>
+    <div style="background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);border-radius:10px;padding:12px;text-align:center">
+      <div class="label" style="font-size:8px">Avg Vol/Session</div>
+      <div class="mono" style="font-size:16px;color:#00d4ff">${avgVol.toLocaleString()}<span style="font-size:9px;color:#444">kg</span></div>
+    </div>
+  </div>
+
+  <!-- ── VIEW TABS ── -->
+  <div style="display:flex;gap:6px;margin-bottom:14px;background:rgba(255,255,255,0.02);border-radius:10px;padding:4px">
+    ${['day','week','month','type'].map(v=>`
+      <button onclick="document.getElementById('tab-content').dataset.view='${v}';renderTraining(document.getElementById('tab-content'))"
+        style="flex:1;background:${view===v?'rgba(0,255,136,0.12)':'none'};border:${view===v?'1px solid rgba(0,255,136,0.2)':'1px solid transparent'};
+        color:${view===v?'#00ff88':'#555'};border-radius:7px;padding:7px 4px;font-size:10px;cursor:pointer;font-family:inherit;letter-spacing:0.5px">
+        ${v==='day'?'📅 Day':v==='week'?'📆 Week':v==='month'?'🗓 Month':'🏷 Type'}
+      </button>`).join('')}
+  </div>
+
+  <!-- ── DAY VIEW ── -->
+  ${view==='day'?`
+  <div style="font-size:9px;color:#444;margin-bottom:8px;letter-spacing:1px">${all.length} sessions · latest first</div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    ${all.map(e=>{
+      const d=new Date(e.date+'T12:00:00');
+      const dayLabel=`${DAYS[d.getDay()]} ${e.date.slice(5)}`;
+      return `<div style="background:rgba(255,255,255,0.02);border:1px solid #111;border-radius:10px;padding:12px 14px;border-left:3px solid ${SESSION_COLORS[e.sessionType]||'#333'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:14px">${SESSION_ICONS[e.sessionType]||'💪'}</span>
+            <div>
+              <div style="font-size:12px;color:${SESSION_COLORS[e.sessionType]||'#888'};font-weight:500">${e.sessionType}</div>
+              <div style="font-size:9px;color:#555">${dayLabel}</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            ${e.volume?`<div class="mono" style="font-size:13px;color:#ff6b6b">${e.volume.toLocaleString()}<span style="font-size:9px;color:#444">kg</span></div>`:''}
+            ${e.sessionCalories?`<div class="mono" style="font-size:10px;color:#ffd43b">${e.sessionCalories}<span style="font-size:8px;color:#333">kcal</span></div>`:''}
+          </div>
+        </div>
+        ${(e.avgHr||e.load)?`<div style="display:flex;gap:10px;margin-top:4px">
+          ${e.avgHr?`<span style="font-size:9px;color:#ff9500">❤️ ${e.avgHr}bpm</span>`:''}
+          ${e.load?`<span style="font-size:9px;color:#888">Load ${e.load}</span>`:''}
+          ${e.duration?`<span style="font-size:9px;color:#444">${e.duration}min</span>`:''}
+        </div>`:''}
+      </div>`;
+    }).join('')}
+  </div>`:''}
+
+  <!-- ── WEEK VIEW ── -->
+  ${view==='week'?`
+  <div style="font-size:9px;color:#444;margin-bottom:8px;letter-spacing:1px">${weeks.length} weeks of training</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    ${weeks.map(w=>{
+      const wVol=w.volume;
+      const maxWVol=Math.max(...weeks.map(x=>x.volume),1);
+      const barPct=Math.round(wVol/maxWVol*100);
+      const d=new Date(w.week+'T12:00:00');
+      const endD=new Date(d);endD.setDate(d.getDate()+6);
+      const wLabel=`${d.getDate()} ${d.toLocaleString('en',{month:'short'})} – ${endD.getDate()} ${endD.toLocaleString('en',{month:'short'})}`;
+      return `<div style="background:rgba(255,255,255,0.02);border:1px solid #111;border-radius:10px;padding:12px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:11px;color:#888;font-weight:500">${wLabel}</div>
+            <div style="font-size:9px;color:#555;margin-top:2px">${w.sessions.length} session${w.sessions.length!==1?'s':''}</div>
+          </div>
+          <div style="text-align:right">
+            ${wVol?`<div class="mono" style="font-size:13px;color:#ff6b6b">${wVol.toLocaleString()}<span style="font-size:9px;color:#444">kg</span></div>`:''}
+            ${w.calories?`<div class="mono" style="font-size:10px;color:#ffd43b">${w.calories.toLocaleString()}<span style="font-size:8px;color:#333">kcal</span></div>`:''}
+          </div>
+        </div>
+        ${wVol?`<div style="background:#111;border-radius:99px;height:4px;margin-bottom:8px"><div style="width:${barPct}%;height:100%;background:linear-gradient(90deg,#ff6b6b,#ff9500);border-radius:99px"></div></div>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:4px">${typeChips(w.types)}</div>
+      </div>`;
+    }).join('')}
+  </div>`:''}
+
+  <!-- ── MONTH VIEW ── -->
+  ${view==='month'?`
+  <div style="font-size:9px;color:#444;margin-bottom:8px;letter-spacing:1px">${months.length} months tracked</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    ${[...months].reverse().map(m=>{
+      const maxMVol=Math.max(...months.map(x=>x.volume),1);
+      const barPct=Math.round(m.volume/maxMVol*100);
+      const mDate=new Date(m.month+'-01T12:00:00');
+      const mLabel=mDate.toLocaleString('en',{month:'long',year:'numeric'});
+      return `<div style="background:rgba(255,255,255,0.02);border:1px solid #111;border-radius:10px;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <div style="font-size:13px;color:#e0e0e0;font-weight:500">${mLabel}</div>
+            <div style="font-size:9px;color:#555;margin-top:2px">${m.sessions.length} sessions</div>
+          </div>
+          <div style="text-align:right">
+            ${m.volume?`<div class="mono" style="font-size:15px;color:#ff6b6b">${m.volume.toLocaleString()}<span style="font-size:9px;color:#444">kg</span></div>`:''}
+            ${m.calories?`<div class="mono" style="font-size:10px;color:#ffd43b">${m.calories.toLocaleString()}<span style="font-size:8px;color:#333">kcal</span></div>`:''}
+          </div>
+        </div>
+        ${m.volume?`<div style="background:#111;border-radius:99px;height:5px;margin-bottom:10px"><div style="width:${barPct}%;height:100%;background:linear-gradient(90deg,#ff6b6b,#ff9500);border-radius:99px"></div></div>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:4px">${typeChips(m.types)}</div>
+      </div>`;
+    }).join('')}
+  </div>`:''}
+
+  <!-- ── TYPE VIEW ── -->
+  ${view==='type'?`
+  <div style="display:flex;flex-direction:column;gap:10px">
+    ${Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([type,count])=>{
+      const typeSessions = all.filter(e=>e.sessionType===type);
+      const typeVol = typeSessions.filter(e=>e.volume).reduce((a,e)=>a+e.volume,0);
+      const typeAvgVol = typeSessions.filter(e=>e.volume).length ? Math.round(typeVol/typeSessions.filter(e=>e.volume).length) : 0;
+      const typeAvgHr = typeSessions.filter(e=>e.avgHr).length ? Math.round(typeSessions.filter(e=>e.avgHr).reduce((a,e)=>a+e.avgHr,0)/typeSessions.filter(e=>e.avgHr).length) : null;
+      const totalCal = typeSessions.reduce((a,e)=>a+(e.sessionCalories||0),0);
+      const recent = typeSessions.slice(0,5);
+      return `<div style="background:rgba(255,255,255,0.02);border:1px solid ${SESSION_COLORS[type]||'#222'}33;border-radius:12px;padding:14px;border-top:2px solid ${SESSION_COLORS[type]||'#333'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:22px">${SESSION_ICONS[type]||'💪'}</span>
+            <div>
+              <div style="font-size:14px;color:${SESSION_COLORS[type]||'#888'};font-weight:600">${type}</div>
+              <div style="font-size:9px;color:#555">${count} sessions</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            ${typeVol?`<div class="mono" style="font-size:13px;color:#ff6b6b">${typeVol.toLocaleString()}<span style="font-size:9px;color:#444">kg</span></div>`:''}
+            ${totalCal?`<div class="mono" style="font-size:10px;color:#ffd43b">${totalCal.toLocaleString()}<span style="font-size:8px;color:#333">kcal</span></div>`:''}
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+          ${typeAvgVol?`<div style="font-size:10px;color:#666">Avg vol <span class="mono" style="color:#ff6b6b">${typeAvgVol.toLocaleString()}kg</span></div>`:''}
+          ${typeAvgHr?`<div style="font-size:10px;color:#666">Avg HR <span class="mono" style="color:#ff9500">${typeAvgHr}bpm</span></div>`:''}
+          <div style="font-size:10px;color:#666">Last <span class="mono" style="color:#888">${typeSessions[0]?.date.slice(5)||'—'}</span></div>
+        </div>
+        <div style="font-size:9px;color:#444;margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">Recent</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${recent.map(e=>`<span style="background:rgba(255,255,255,0.03);border:1px solid #111;border-radius:5px;padding:3px 8px;font-size:9px">
+            <span style="color:#555">${e.date.slice(5)}</span>
+            ${e.volume?`<span class="mono" style="color:#ff6b6b;margin-left:4px">${e.volume.toLocaleString()}kg</span>`:''}
+            ${e.sessionCalories&&!e.volume?`<span class="mono" style="color:#ffd43b;margin-left:4px">${e.sessionCalories}kcal</span>`:''}
+          </span>`).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`:''}
+  `;
 }
 
 function renderNutrition(el){
