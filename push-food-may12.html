@@ -65,7 +65,7 @@ async function pushFood() {
     try {
       const res = await fetch('https://performance-os-backend-production.up.railway.app/food/log', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'anything' },
+        headers: { 'Content-Type': 'application/json', 'x-food-api-key': 'anything' },
         body: JSON.stringify({ ...entry, date })
       });
       if (res.ok) success++;
