@@ -655,15 +655,11 @@ function renderOverview(el){
   const todayFood=STATE.food.filter(f=>f.date===today);
   const todayProtein=todayFood.reduce((a,f)=>a+(+f.protein||0),0);
   const todayKcal=todayFood.reduce((a,f)=>a+(+f.calories||0),0);
-  const isRest = todayEntry.sessionType 
-    ? (todayEntry.sessionType === 'Rest') 
-    : (['Rings','Handstand','Planche','Bars'].includes(todayEntry.sessionType) || !!todayEntry.volume)
-      ? false
-      : true; // default to rest if no entry
-  const proteinTarget = isRest ? 140 : 162;
-  const kcalTarget = isRest ? 1450 : 1700;
-  // Override session type display for today if we know it
-  const todaySessionDisplay = todayEntry.sessionType || 'Rest Day';
+  const hasEntry = !!todayEntry.sessionType;
+  const isTraining = hasEntry && todayEntry.sessionType !== 'Rest';
+  const isRest = hasEntry && todayEntry.sessionType === 'Rest';
+  const proteinTarget = isTraining ? 162 : 140;
+  const kcalTarget = isTraining ? 1700 : 1450;
 
   // Pull latest Whoop data (today or most recent)
   const whoopSorted=[...STATE.whoop.data].sort((a,b)=>a.date<b.date?1:-1);
@@ -692,23 +688,26 @@ function renderOverview(el){
   const allRecov=[...STATE.whoop.data].filter(d=>d.recovery_score).map(d=>d.recovery_score);
   const avgRecov=allRecov.length?(allRecov.reduce((a,b)=>a+b,0)/allRecov.length).toFixed(0):'—';
   const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const sessionLabel = sessionType 
-    ? sessionType 
-    : '— Training pending';
-  const sessionLabelColor = sessionType ? '#e0e0e0' : '#555';
+  const SESSION_ICONS={Rings:'🤸',Handstand:'🙃',Planche:'💪',Bars:'🏋️',Golf:'⛳',Bouldering:'🧗','Freestyle/Hybrid':'🔀','Cardio/Treadmill':'🏃',Rest:'😴'};
+  const sessionLabel = hasEntry ? todayEntry.sessionType : '— Log today\'s session';
+  const sessionLabelColor = hasEntry ? '#e0e0e0' : '#444';
 
-  // All sessions for block display (include Golf, Bouldering, all types)
-  const blockSessions = s.filter(e=>e.sessionType && e.sessionType!=='Rest' && (e.volume||e.sessionType==='Golf'||e.sessionType==='Bouldering'))
-    .sort((a,b)=>a.date>b.date?1:-1)
-    .slice(-12); // last 12 sessions
+  // All sessions latest first, include Golf + Bouldering
+  const blockSessions = s
+    .filter(e=>e.sessionType && e.sessionType!=='Rest' && (e.volume||e.sessionType==='Golf'||e.sessionType==='Bouldering'))
+    .sort((a,b)=>a.date<b.date?1:-1) // latest first
+    .slice(0,12);
   const blockVol = blockSessions.reduce((a,e)=>a+(e.volume||0),0);
 
   el.innerHTML=`
   <!-- ── TODAY HEADER ── -->
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div>
-      <div style="font-size:9px;letter-spacing:2.5px;color:#00ff88;text-transform:uppercase;margin-bottom:3px">Today · ${today} · ${DAYS[new Date(today).getDay()]}</div>
-      <div style="font-size:15px;font-weight:600;color:${sessionLabelColor}">${sessionLabel} <span style="font-size:11px;color:#333;font-weight:400">· Block 2</span></div>
+      <div style="font-size:9px;letter-spacing:2.5px;color:#00ff88;text-transform:uppercase;margin-bottom:3px">Today · ${today} · ${DAYS[new Date(today+'T12:00:00').getDay()]}</div>
+      <div style="font-size:15px;font-weight:600;color:${sessionLabelColor}">
+        ${hasEntry ? `${SESSION_ICONS[sessionType]||''} ${sessionLabel}` : sessionLabel}
+        <span style="font-size:11px;color:#333;font-weight:400"> · Block 2</span>
+      </div>
     </div>
     <button onclick="document.getElementById('add-food-modal').style.display='flex'" style="background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);color:#00ff88;border-radius:8px;padding:6px 14px;font-size:11px;cursor:pointer;font-family:inherit">+ Log food</button>
   </div>
@@ -716,16 +715,16 @@ function renderOverview(el){
   <!-- ── TODAY BIOMETRICS (Whoop + manual) ── -->
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px" class="stat-grid-4">
     ${[
-      {l:'Weight',v:getVal('weight')??'—',u:'kg',c:'#00ff88',sub:'Target ≤66.2'},
-      {l:'Recovery',v:recovery??'—',u:'%',c:recovery!=null?recColor:'#444',sub:'Whoop'},
-      {l:'HRV',v:hrv??'—',u:'ms',c:'#00d4ff',sub:'On wake'},
-      {l:'RHR',v:rhr??'—',u:'bpm',c:'#ff9500',sub:'Resting'},
-      {l:'Sleep',v:sleep??'—',u:'h',c:'#69db7c',sub:'Last night'},
+      {l:'⚖️ Weight',v:getVal('weight')??'—',u:'kg',c:'#00ff88',sub:'Target ≤66.2'},
+      {l:'🫀 Recovery',v:recovery??'—',u:'%',c:recovery!=null?recColor:'#444',sub:'Whoop'},
+      {l:'📊 HRV',v:hrv??'—',u:'ms',c:'#00d4ff',sub:'On wake'},
+      {l:'💓 RHR',v:rhr??'—',u:'bpm',c:'#ff9500',sub:'Resting'},
+      {l:'😴 Sleep',v:sleep??'—',u:'h',c:'#69db7c',sub:'Last night'},
     ].map(({l,v,u,c,sub})=>`<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:11px 10px;position:relative;overflow:hidden">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${c},transparent)"></div>
       <div class="label" style="font-size:8px">${l}</div>
       <div class="mono" style="font-size:17px;color:${c};font-weight:300;line-height:1.1">${v}<span style="font-size:9px;color:#444;margin-left:1px">${u}</span></div>
-      <div style="font-size:8px;color:#2a2a2a;margin-top:1px">${sub}</div>
+      <div style="font-size:8px;color:#555;margin-top:1px">${sub}</div>
     </div>`).join('')}
   </div>
 
@@ -828,13 +827,15 @@ function renderOverview(el){
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
       ${blockSessions.map(e=>{
-        const d = new Date(e.date);
+        const d = new Date(e.date+'T12:00:00');
         const label = `${(d.getMonth()+1)}-${String(d.getDate()).padStart(2,'0')}, ${DAYS[d.getDay()]}`;
+        const icon = SESSION_ICONS[e.sessionType]||'';
         return `<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:9px 10px;border-top:2px solid ${SESSION_COLORS[e.sessionType]||'#333'}">
-          <div style="font-size:8px;color:${SESSION_COLORS[e.sessionType]||'#555'};letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${e.sessionType}</div>
-          <div style="font-size:8px;color:#444;margin-bottom:3px">${label}</div>
-          ${e.volume?`<div class="mono" style="font-size:12px">${e.volume.toLocaleString()}<span style="font-size:8px;color:#333;margin-left:1px">kg</span></div>`:
-          `<div style="font-size:10px;color:#333">${e.sessionType==='Golf'?'⛳':e.sessionType==='Bouldering'?'🧗':'—'}</div>`}
+          <div style="font-size:8px;color:${SESSION_COLORS[e.sessionType]||'#555'};letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${icon} ${e.sessionType}</div>
+          <div style="font-size:9px;color:#666;margin-bottom:3px">${label}</div>
+          ${e.volume
+            ? `<div class="mono" style="font-size:12px;color:#ccc">${e.volume.toLocaleString()}<span style="font-size:8px;color:#555;margin-left:1px">kg</span></div>`
+            : `<div style="font-size:14px">${icon}</div>`}
         </div>`;
       }).join('')}
     </div>
