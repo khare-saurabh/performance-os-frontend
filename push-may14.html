@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Push — 14 May 2026</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+  h2 { margin-bottom: 4px; font-size: 1.1rem; color: #aaa; font-weight: 400; }
+  h1 { margin: 0 0 24px; font-size: 1.6rem; }
+  .section { width: 100%; max-width: 400px; background: #1a1a1a; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .section-title { font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 10px; }
+  .item { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #2a2a2a; font-size: 0.88rem; }
+  .item:last-child { border-bottom: none; }
+  .item-name { color: #ddd; max-width: 68%; }
+  .item-macros { color: #888; font-size: 0.78rem; text-align: right; }
+  .totals { width: 100%; max-width: 400px; background: #1e2a1e; border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; justify-content: space-around; }
+  .total-block { text-align: center; }
+  .total-val { font-size: 1.4rem; font-weight: 700; color: #4ade80; }
+  .total-label { font-size: 0.75rem; color: #888; margin-top: 2px; }
+  .session { width: 100%; max-width: 400px; background: #1a1f2e; border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+  .session-title { font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; color: #4a9eff; margin-bottom: 10px; }
+  .stat { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.88rem; border-bottom: 1px solid #252535; }
+  .stat:last-child { border-bottom: none; }
+  .stat-label { color: #888; }
+  .stat-val { color: #fff; font-weight: 600; }
+  button { background: #4ade80; color: #000; border: none; border-radius: 10px; padding: 16px; font-size: 1rem; font-weight: 700; cursor: pointer; width: 100%; max-width: 400px; }
+  button:disabled { background: #333; color: #666; cursor: default; }
+  #status { margin-top: 16px; font-size: 0.9rem; color: #888; text-align: center; }
+</style>
+</head>
+<body>
+<h2>Performance OS</h2>
+<h1>14 May 2026 — Bars Day</h1>
+
+<div class="session">
+  <div class="session-title">🏋️ Bars Session</div>
+  <div class="stat"><span class="stat-label">Volume</span><span class="stat-val">11,722 kg</span></div>
+  <div class="stat"><span class="stat-label">Sets / Reps</span><span class="stat-val">31 sets · 216 reps</span></div>
+  <div class="stat"><span class="stat-label">Duration</span><span class="stat-val">1:15:51</span></div>
+  <div class="stat"><span class="stat-label">Avg HR / Max</span><span class="stat-val">97 / 124 bpm</span></div>
+  <div class="stat"><span class="stat-label">Calories</span><span class="stat-val">231</span></div>
+  <div class="stat"><span class="stat-label">Load</span><span class="stat-val">8</span></div>
+  <div class="stat"><span class="stat-label">Muscle-ups</span><span class="stat-val">18 strict unassisted</span></div>
+</div>
+
+<div class="section">
+  <div class="section-title">🍽️ Food Log</div>
+  <div class="item"><span class="item-name">🥚 3 boiled eggs + banana</span><span class="item-macros">20g · 320 kcal</span></div>
+  <div class="item"><span class="item-name">🍗 2× grilled chicken breast + stem broccoli</span><span class="item-macros">52g · 380 kcal</span></div>
+  <div class="item"><span class="item-name">🍫 David bar</span><span class="item-macros">28g · 150 kcal</span></div>
+  <div class="item"><span class="item-name">🥃 Whisky (pre-gym, with boss)</span><span class="item-macros">0g · 110 kcal</span></div>
+  <div class="item"><span class="item-name">🥤 Post-gym shake — acai, banana, berries, coconut water, whey, creatine</span><span class="item-macros">35g · 320 kcal</span></div>
+</div>
+
+<div class="totals">
+  <div class="total-block"><div class="total-val">135g</div><div class="total-label">Protein so far</div></div>
+  <div class="total-block"><div class="total-val">1,280</div><div class="total-label">Calories so far</div></div>
+  <div class="total-block"><div class="total-val">🍽️</div><div class="total-label">Dinner pending</div></div>
+</div>
+
+<button id="pushBtn" onclick="pushAll()">Push to App</button>
+<div id="status"></div>
+
+<script>
+async function pushAll() {
+  const btn = document.getElementById('pushBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Pushing...';
+  try {
+    const res = await fetch('https://performance-os-backend-production.up.railway.app/food/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: 'anything',
+        entries: [
+          { date: '2026-05-14', meal: 'breakfast', items: '3 boiled eggs · Banana', protein: 20, calories: 320, notes: '' },
+          { date: '2026-05-14', meal: 'lunch', items: '2x grilled chicken breast · stem broccoli', protein: 52, calories: 380, notes: '' },
+          { date: '2026-05-14', meal: 'snack', items: 'David bar', protein: 28, calories: 150, notes: '' },
+          { date: '2026-05-14', meal: 'snack', items: 'Whisky (pre-gym debrief with boss)', protein: 0, calories: 110, notes: '' },
+          { date: '2026-05-14', meal: 'post-workout', items: 'Post-gym shake — acai, banana, berries, coconut water, whey x1, creatine', protein: 35, calories: 320, notes: 'Usual gym shake' }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    btn.textContent = '✅ Food pushed!';
+    status.textContent = (data.added ? data.added.length : 5) + ' food entries logged';
+    status.style.color = '#4ade80';
+  } catch(e) {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    status.style.color = '#ff4444';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
