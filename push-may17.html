@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Push Food — 17 May 2026</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+  h2 { margin-bottom: 4px; font-size: 1.1rem; color: #aaa; font-weight: 400; }
+  h1 { margin: 0 0 24px; font-size: 1.6rem; }
+  .items { width: 100%; max-width: 400px; background: #1a1a1a; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2a2a2a; font-size: 0.9rem; }
+  .item:last-child { border-bottom: none; }
+  .item-name { color: #ddd; max-width: 68%; }
+  .item-macros { color: #888; font-size: 0.8rem; text-align: right; }
+  .totals { width: 100%; max-width: 400px; background: #1e2a1e; border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; justify-content: space-around; }
+  .total-block { text-align: center; }
+  .total-val { font-size: 1.4rem; font-weight: 700; color: #4ade80; }
+  .total-label { font-size: 0.75rem; color: #888; margin-top: 2px; }
+  button { background: #4ade80; color: #000; border: none; border-radius: 10px; padding: 16px; font-size: 1rem; font-weight: 700; cursor: pointer; width: 100%; max-width: 400px; }
+  button:disabled { background: #333; color: #666; cursor: default; }
+  #status { margin-top: 16px; font-size: 0.9rem; color: #888; text-align: center; }
+</style>
+</head>
+<body>
+<h2>Performance OS</h2>
+<h1>Food Log — 17 May 2026</h1>
+<div class="items">
+  <div class="item"><span class="item-name">🥤 Goodness Shake</span><span class="item-macros">35g · 180 kcal</span></div>
+  <div class="item"><span class="item-name">☕ Long black (driving)</span><span class="item-macros">0g · 10 kcal</span></div>
+  <div class="item"><span class="item-name">💧 Hydro + banana (9th tee)</span><span class="item-macros">1g · 115 kcal</span></div>
+  <div class="item"><span class="item-name">🍫 David bar (on course)</span><span class="item-macros">28g · 150 kcal</span></div>
+  <div class="item"><span class="item-name">🍗 Saag chicken + mixed veg + spoon chicken tikka masala</span><span class="item-macros">42g · 380 kcal</span></div>
+  <div class="item"><span class="item-name">🥤 Myprotein clear whey isolate</span><span class="item-macros">20g · 88 kcal</span></div>
+  <div class="item"><span class="item-name">🍗 Roti King — chicken curry (shared)</span><span class="item-macros">30g · 280 kcal</span></div>
+  <div class="item"><span class="item-name">🍖 Roti King — mutton curry (shared)</span><span class="item-macros">25g · 300 kcal</span></div>
+  <div class="item"><span class="item-name">🫘 Roti King — dal (mostly mine)</span><span class="item-macros">12g · 200 kcal</span></div>
+  <div class="item"><span class="item-name">🫓 Roti King — 1 roti</span><span class="item-macros">4g · 120 kcal</span></div>
+</div>
+<div class="totals">
+  <div class="total-block"><div class="total-val">197g</div><div class="total-label">Protein</div></div>
+  <div class="total-block"><div class="total-val">1,823</div><div class="total-label">Calories</div></div>
+  <div class="total-block"><div class="total-val">⛳</div><div class="total-label">Golf day</div></div>
+</div>
+<button id="pushBtn" onclick="pushFood()">Push to App</button>
+<div id="status"></div>
+<script>
+async function pushFood() {
+  const btn = document.getElementById('pushBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Pushing...';
+  try {
+    const res = await fetch('https://performance-os-backend-production.up.railway.app/food/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: 'anything',
+        entries: [
+          { date: '2026-05-17', meal: 'breakfast', items: 'For Goodness Shakes — 35g protein lactose-free RTD', protein: 35, calories: 180, notes: 'In car to Mill Hill Golf Club' },
+          { date: '2026-05-17', meal: 'breakfast', items: 'Long black coffee', protein: 0, calories: 10, notes: 'Driving' },
+          { date: '2026-05-17', meal: 'snack', items: 'Humantara Hydro · Banana', protein: 1, calories: 115, notes: '9th tee — mid round' },
+          { date: '2026-05-17', meal: 'snack', items: 'David bar', protein: 28, calories: 150, notes: 'On course' },
+          { date: '2026-05-17', meal: 'lunch', items: 'Saag chicken · mixed veg · spoon chicken tikka masala', protein: 42, calories: 380, notes: 'Home lunch at 3pm' },
+          { date: '2026-05-17', meal: 'snack', items: 'Myprotein clear whey isolate — Orange & Mango', protein: 20, calories: 88, notes: '5:30pm' },
+          { date: '2026-05-17', meal: 'dinner', items: 'Roti King — chicken curry (shared)', protein: 30, calories: 280, notes: 'Dinner out' },
+          { date: '2026-05-17', meal: 'dinner', items: 'Roti King — mutton curry (shared)', protein: 25, calories: 300, notes: 'Dinner out' },
+          { date: '2026-05-17', meal: 'dinner', items: 'Roti King — dal (mostly mine)', protein: 12, calories: 200, notes: 'Dinner out' },
+          { date: '2026-05-17', meal: 'dinner', items: 'Roti King — 1 roti', protein: 4, calories: 120, notes: 'Dinner out' }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    btn.textContent = '✅ All pushed!';
+    btn.style.background = '#4ade80';
+    status.textContent = (data.added ? data.added.length : 10) + ' entries pushed successfully';
+    status.style.color = '#4ade80';
+  } catch(e) {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    status.style.color = '#ff4444';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
