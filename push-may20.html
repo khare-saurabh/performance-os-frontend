@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Push Food — 20 May 2026</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+  h2 { margin-bottom: 4px; font-size: 1.1rem; color: #aaa; font-weight: 400; }
+  h1 { margin: 0 0 24px; font-size: 1.6rem; }
+  .items { width: 100%; max-width: 400px; background: #1a1a1a; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2a2a2a; font-size: 0.9rem; }
+  .item:last-child { border-bottom: none; }
+  .item-name { color: #ddd; max-width: 68%; }
+  .item-macros { color: #888; font-size: 0.8rem; text-align: right; }
+  .totals { width: 100%; max-width: 400px; background: #1e2a1e; border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; justify-content: space-around; }
+  .total-block { text-align: center; }
+  .total-val { font-size: 1.4rem; font-weight: 700; color: #4ade80; }
+  .total-label { font-size: 0.75rem; color: #888; margin-top: 2px; }
+  button { background: #4ade80; color: #000; border: none; border-radius: 10px; padding: 16px; font-size: 1rem; font-weight: 700; cursor: pointer; width: 100%; max-width: 400px; }
+  button:disabled { background: #333; color: #666; cursor: default; }
+  #status { margin-top: 16px; font-size: 0.9rem; color: #888; text-align: center; }
+</style>
+</head>
+<body>
+<h2>Performance OS</h2>
+<h1>Food Log — 20 May 2026</h1>
+<div class="items">
+  <div class="item"><span class="item-name">🥚 2 boiled eggs</span><span class="item-macros">12g · 140 kcal</span></div>
+  <div class="item"><span class="item-name">🍌 Banana + double espresso</span><span class="item-macros">1g · 100 kcal</span></div>
+  <div class="item"><span class="item-name">🥤 Post-session shake — acai, banana, berries, coconut water, whey, creatine</span><span class="item-macros">35g · 320 kcal</span></div>
+  <div class="item"><span class="item-name">🍗 Assenheims 56 — grilled chicken large + broccoli, carrots, cabbage (no skin)</span><span class="item-macros">70g · 440 kcal</span></div>
+  <div class="item"><span class="item-name">🍫 David bar</span><span class="item-macros">28g · 150 kcal</span></div>
+  <div class="item"><span class="item-name">🦃 Homemade turkey mince</span><span class="item-macros">32g · 200 kcal</span></div>
+  <div class="item"><span class="item-name">🍗 Leftover Roti King chicken</span><span class="item-macros">20g · 150 kcal</span></div>
+  <div class="item"><span class="item-name">🥗 Mixed veg — peas, carrots, corn</span><span class="item-macros">5g · 80 kcal</span></div>
+</div>
+<div class="totals">
+  <div class="total-block"><div class="total-val">203g</div><div class="total-label">Protein</div></div>
+  <div class="total-block"><div class="total-val">1,580</div><div class="total-label">Calories</div></div>
+  <div class="total-block"><div class="total-val">✅</div><div class="total-label">Target hit</div></div>
+</div>
+<button id="pushBtn" onclick="pushFood()">Push to App</button>
+<div id="status"></div>
+<script>
+async function pushFood() {
+  const btn = document.getElementById('pushBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Pushing...';
+  try {
+    const res = await fetch('https://performance-os-backend-production.up.railway.app/food/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: 'anything',
+        entries: [
+          { date: '2026-05-20', meal: 'breakfast', items: '2 boiled eggs', protein: 12, calories: 140, notes: '' },
+          { date: '2026-05-20', meal: 'breakfast', items: 'Banana · double espresso', protein: 1, calories: 100, notes: '' },
+          { date: '2026-05-20', meal: 'post-workout', items: 'Post-gym shake — acai, banana, berries, coconut water, whey x1, creatine', protein: 35, calories: 320, notes: '' },
+          { date: '2026-05-20', meal: 'lunch', items: 'Assenheims 56 — grilled chicken large, broccoli, carrots, cabbage (no skin)', protein: 70, calories: 440, notes: 'EC2N — new spot' },
+          { date: '2026-05-20', meal: 'snack', items: 'David bar', protein: 28, calories: 150, notes: '4pm' },
+          { date: '2026-05-20', meal: 'dinner', items: 'Homemade turkey mince', protein: 32, calories: 200, notes: '' },
+          { date: '2026-05-20', meal: 'dinner', items: 'Leftover Roti King chicken', protein: 20, calories: 150, notes: '' },
+          { date: '2026-05-20', meal: 'dinner', items: 'Mixed veg — peas, carrots, corn', protein: 5, calories: 80, notes: '' }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    btn.textContent = '✅ All pushed!';
+    btn.style.background = '#4ade80';
+    status.textContent = (data.added ? data.added.length : 8) + ' entries pushed successfully';
+    status.style.color = '#4ade80';
+  } catch(e) {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    status.style.color = '#ff4444';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
