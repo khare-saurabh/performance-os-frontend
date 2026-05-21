@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Food Log — 21 May 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #1e1e1e;
+    --accent: #c8f135;
+    --text: #f0f0f0;
+    --muted: #555;
+    --protein: #c8f135;
+    --kcal: #35c8f1;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    padding: 24px 20px 48px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .date-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .title span { color: var(--accent); }
+
+  .totals-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 28px;
+    animation: fadeUp 0.4s 0.1s ease both;
+  }
+
+  .total-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .total-card .label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .total-card .value {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .total-card .value.protein { color: var(--protein); }
+  .total-card .value.kcal { color: var(--kcal); }
+
+  .total-card .target {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .target-hit {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .meals {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 32px;
+    animation: fadeUp 0.4s 0.2s ease both;
+  }
+
+  .meal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: start;
+  }
+
+  .meal-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .meal-name {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text);
+  }
+
+  .meal-macros {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .macro-protein {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--protein);
+    font-weight: 700;
+  }
+
+  .macro-kcal {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--kcal);
+    margin-top: 2px;
+  }
+
+  .session-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 32px;
+    animation: fadeUp 0.4s 0.3s ease both;
+  }
+
+  .session-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .session-stat .s-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 3px;
+  }
+
+  .session-stat .s-value {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--accent);
+  }
+
+  .session-stat .s-unit {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+  }
+
+  .push-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    padding: 18px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+    animation: fadeUp 0.4s 0.4s ease both;
+  }
+
+  .push-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .push-btn:active { transform: translateY(0); opacity: 1; }
+  .push-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .status {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    text-align: center;
+    margin-top: 14px;
+    min-height: 18px;
+    color: var(--muted);
+    animation: fadeUp 0.4s 0.45s ease both;
+  }
+
+  .status.success { color: var(--accent); }
+  .status.error { color: #f13535; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="date-label">Thu 21 May 2026 · Day 4 — Bars</div>
+  <div class="title">Food <span>Log</span></div>
+</div>
+
+<div class="totals-bar">
+  <div class="total-card">
+    <div class="label">Protein</div>
+    <div class="value protein">160.5g</div>
+    <div class="target">Target 162g</div>
+    <div class="target-hit">✓ Hit</div>
+  </div>
+  <div class="total-card">
+    <div class="label">Calories</div>
+    <div class="value kcal">1,756</div>
+    <div class="target">Target 1,700</div>
+    <div class="target-hit">✓ Hit</div>
+  </div>
+</div>
+
+<div class="section-label">Meals</div>
+<div class="meals">
+  <div class="meal">
+    <div>
+      <div class="meal-time">09:30 · Pre-workout</div>
+      <div class="meal-name">3 boiled eggs · Banana · Espresso</div>
+    </div>
+    <div class="meal-macros">
+      <div class="macro-protein">19g</div>
+      <div class="macro-kcal">300 kcal</div>
+    </div>
+  </div>
+  <div class="meal">
+    <div>
+      <div class="meal-time">12:00 · Post-workout</div>
+      <div class="meal-name">Post-gym shake — acai, banana, blueberries, coconut water, whey, creatine</div>
+    </div>
+    <div class="meal-macros">
+      <div class="macro-protein">35g</div>
+      <div class="macro-kcal">320 kcal</div>
+    </div>
+  </div>
+  <div class="meal">
+    <div>
+      <div class="meal-time">13:30 · Lunch</div>
+      <div class="meal-name">Turkish chicken · ½ bulgur · salad</div>
+    </div>
+    <div class="meal-macros">
+      <div class="macro-protein">40g</div>
+      <div class="macro-kcal">550 kcal</div>
+    </div>
+  </div>
+  <div class="meal">
+    <div>
+      <div class="meal-time">16:00 · Snack</div>
+      <div class="meal-name">Fulfil bar</div>
+    </div>
+    <div class="meal-macros">
+      <div class="macro-protein">20.5g</div>
+      <div class="macro-kcal">206 kcal</div>
+    </div>
+  </div>
+  <div class="meal">
+    <div>
+      <div class="meal-time">20:30 · Dinner</div>
+      <div class="meal-name">Burrito bowl — fajita chicken, beans, lettuce, cabbage, sweetcorn, jalapeño, salsas</div>
+    </div>
+    <div class="meal-macros">
+      <div class="macro-protein">46g</div>
+      <div class="macro-kcal">380 kcal</div>
+    </div>
+  </div>
+</div>
+
+<div class="session-card">
+  <div class="section-label">Session — Bars</div>
+  <div class="session-grid">
+    <div class="session-stat">
+      <div class="s-label">Volume</div>
+      <div class="s-value">9,794</div>
+      <div class="s-unit">kg</div>
+    </div>
+    <div class="session-stat">
+      <div class="s-label">Duration</div>
+      <div class="s-value">1:04</div>
+      <div class="s-unit">hrs</div>
+    </div>
+    <div class="session-stat">
+      <div class="s-label">Calories</div>
+      <div class="s-value">234</div>
+      <div class="s-unit">kcal</div>
+    </div>
+    <div class="session-stat">
+      <div class="s-label">Sets</div>
+      <div class="s-value">22</div>
+      <div class="s-unit"></div>
+    </div>
+    <div class="session-stat">
+      <div class="s-label">Reps</div>
+      <div class="s-value">176</div>
+      <div class="s-unit"></div>
+    </div>
+    <div class="session-stat">
+      <div class="s-label">Avg HR</div>
+      <div class="s-value">98</div>
+      <div class="s-unit">bpm</div>
+    </div>
+  </div>
+</div>
+
+<button class="push-btn" id="pushBtn" onclick="pushLog()">Push to App</button>
+<div class="status" id="status"></div>
+
+<script>
+async function pushLog() {
+  const btn = document.getElementById('pushBtn');
+  const status = document.getElementById('status');
+
+  btn.disabled = true;
+  btn.textContent = 'Pushing...';
+  status.textContent = '';
+  status.className = 'status';
+
+  const entries = [
+    {
+      date: "2026-05-21",
+      meal: "pre-workout",
+      items: "3 boiled eggs · Banana · Espresso",
+      protein: 19,
+      calories: 300,
+      notes: ""
+    },
+    {
+      date: "2026-05-21",
+      meal: "post-workout",
+      items: "Post-gym shake — acai, banana, blueberries, coconut water, whey, creatine",
+      protein: 35,
+      calories: 320,
+      notes: ""
+    },
+    {
+      date: "2026-05-21",
+      meal: "lunch",
+      items: "Turkish chicken · half bulgur · salad",
+      protein: 40,
+      calories: 550,
+      notes: ""
+    },
+    {
+      date: "2026-05-21",
+      meal: "snack",
+      items: "Fulfil bar",
+      protein: 21,
+      calories: 206,
+      notes: ""
+    },
+    {
+      date: "2026-05-21",
+      meal: "dinner",
+      items: "Burrito bowl — fajita chicken, beans, lettuce, cabbage, sweetcorn, jalapeño, pico de gallo, salsa roja",
+      protein: 46,
+      calories: 380,
+      notes: ""
+    }
+  ];
+
+  try {
+    const response = await fetch('https://performance-os-backend-production.up.railway.app/food/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: 'anything', entries })
+    });
+
+    if (response.ok) {
+      btn.textContent = '✓ Pushed';
+      status.textContent = '5 entries logged — 160.5g · 1,756 kcal';
+      status.className = 'status success';
+    } else {
+      throw new Error(`${response.status}`);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Push to App';
+    status.textContent = `Error: ${err.message} — check connection`;
+    status.className = 'status error';
+  }
+}
+</script>
+</body>
+</html>
