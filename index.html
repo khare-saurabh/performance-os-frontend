@@ -465,9 +465,11 @@ function renderNutrition(date){
 // ============ RECOVERY TAB ============
 function renderRecovery(){
   const t=today();
-  const withData=[...STATE.dm].filter(d=>d.recovery!=null||d.hrv!=null||d.rhr!=null).sort((a,b)=>a.date<b.date?1:-1);
-  const dm=STATE.dm.find(d=>d.date===t)||withData[0]||{};
-  const dmLabel=dm.date===t?'Today':dm.date?`Latest · ${dm.date}`:'—';
+  const hasBio=d=>d.recovery!=null||d.hrv!=null||d.rhr!=null;
+  const todayEntry=STATE.dm.find(d=>d.date===t)||{};
+  const latestBio=[...STATE.dm].filter(hasBio).sort((a,b)=>a.date<b.date?1:-1)[0]||{};
+  const dm=hasBio(todayEntry)?todayEntry:latestBio;
+  const dmLabel=hasBio(todayEntry)?'Today':dm.date?`Latest · ${dm.date}`:'No data';
   const whoopToken=localStorage.getItem('whoop_access_token');
   const lastSync=localStorage.getItem('whoop_last_sync');
   const rc=v=>v>=67?'var(--green)':v>=34?'var(--amber)':'var(--red)';
