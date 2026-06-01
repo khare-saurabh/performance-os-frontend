@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Performance OS — Data Migration</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#080808;color:#e0e0e0;font-family:"SF Mono",Consolas,monospace;padding:24px;max-width:720px;margin:0 auto;line-height:1.5}
+  h1{font-size:16px;letter-spacing:1px;color:#00ff88;margin-bottom:4px}
+  .sub{font-size:11px;color:#555;margin-bottom:24px}
+  label{display:block;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#555;margin:14px 0 5px}
+  input{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:11px 14px;color:#fff;font-family:inherit;font-size:13px;outline:none}
+  input:focus{border-color:rgba(0,255,136,0.4)}
+  button{margin-top:22px;width:100%;background:#00ff88;color:#000;border:none;border-radius:8px;padding:13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:0.5px}
+  button:disabled{opacity:0.4;cursor:not-allowed}
+  #log{margin-top:24px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:16px;font-size:12px;white-space:pre-wrap;min-height:80px;max-height:50vh;overflow-y:auto}
+  .ok{color:#00ff88}.warn{color:#ff9500}.err{color:#ff4444}.dim{color:#555}
+</style>
+</head>
+<body>
+  <h1>Performance OS — Data Migration</h1>
+  <div class="sub">One-time push of your local data → Supabase. Run this on the SAME domain as your app.</div>
+
+  <label>Supabase URL</label>
+  <input id="url" value="https://uebeeqjrwmyntqmfndhf.supabase.co">
+  <label>Supabase anon key <span class="dim">(Dashboard → Settings → API → anon/public)</span></label>
+  <input id="anon" placeholder="eyJhbGciOi...">
+  <label>Email <span class="dim">(the account you created)</span></label>
+  <input id="email" type="email" placeholder="you@email.com">
+  <label>Password</label>
+  <input id="pass" type="password" placeholder="••••••••">
+
+  <button id="go" onclick="migrate()">Sign in & migrate</button>
+  <div id="log">Waiting…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const logEl = document.getElementById('log');
+let firstLog = true;
+function log(msg, cls=''){ if(firstLog){logEl.innerHTML='';firstLog=false;} logEl.innerHTML += `<span class="${cls}">${msg}</span>\n`; logEl.scrollTop = logEl.scrollHeight; }
+const int = v => (v==null || isNaN(v)) ? null : Math.round(+v);  // integer columns (volume etc.) — round bodyweight decimals
+
+// InBody history is in the app CODE, not your local DB, so it's embedded here.
+const INBODY = [
+  {date:'2023-10-01',weight:69.3,muscle:34.4,body_fat:13.4},
+  {date:'2023-11-01',weight:71.1,muscle:34.7,body_fat:14.6},
+  {date:'2023-12-01',weight:68.0,muscle:34.0,body_fat:12.5},
+  {date:'2024-12-01',weight:71.6,muscle:35.5,body_fat:13.5},
+  {date:'2025-01-01',weight:68.2,muscle:35.0,body_fat:10.2},
+  {date:'2025-10-01',weight:68.2,muscle:34.6,body_fat:11.1},
+  {date:'2026-03-01',weight:69.4,muscle:35.4,body_fat:11.0},
+  {date:'2026-05-08',weight:66.8,muscle:34.9,body_fat:9.0,inbody_score:88},
+];
+
+function openLocalDB(){
+  return new Promise((res,rej)=>{
+    const r = indexedDB.open('PerformanceOS');
+    r.onsuccess = e => res(e.target.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function getAll(db, store){
+  return new Promise(res=>{
+    if(!db.objectStoreNames.contains(store)) return res([]);
+    const req = db.transaction(store,'readonly').objectStore(store).getAll();
+    req.onsuccess = () => res(req.result||[]);
+    req.onerror = () => res([]);
+  });
+}
+function dataURLtoBlob(d){
+  const [head,b64]=d.split(','); const mime=head.match(/:(.*?);/)[1];
+  const bin=atob(b64); const u8=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  return new Blob([u8],{type:mime});
+}
+
+async function migrate(){
+  const btn=document.getElementById('go'); btn.disabled=true;
+  const url=document.getElementById('url').value.trim();
+  const anon=document.getElementById('anon').value.trim();
+  const email=document.getElementById('email').value.trim();
+  const pass=document.getElementById('pass').value;
+  if(!url||!anon||!email||!pass){ log('Fill in all fields.','err'); btn.disabled=false; return; }
+
+  const sb = window.supabase.createClient(url, anon);
+
+  log('Signing in…','dim');
+  const { data: auth, error: authErr } = await sb.auth.signInWithPassword({email,password:pass});
+  if(authErr){ log('Sign-in failed: '+authErr.message,'err'); btn.disabled=false; return; }
+  const uid = auth.user.id;
+  log('Signed in ✓  user '+uid.slice(0,8)+'…','ok');
+
+  // ---- Read local data ----
+  let db;
+  try { db = await openLocalDB(); } catch(e){ log('Could not open local DB: '+e.message,'err'); btn.disabled=false; return; }
+  const entries = await getAll(db,'entries');
+  const food    = await getAll(db,'food');
+  const photos  = await getAll(db,'photos');
+  let whoop=[]; try { whoop = JSON.parse(localStorage.getItem('whoop_cached_data')||'[]'); } catch(e){}
+  log(`Found locally: ${entries.length} entries · ${food.length} food · ${photos.length} photos · ${whoop.length} Whoop days`, 'dim');
+  if(entries.length===0 && food.length===0 && photos.length===0){
+    log('Nothing found — are you running this on the SAME domain as your app?','warn');
+  }
+
+  // ---- 1. daily_metrics (merge entries biometrics + Whoop) ----
+  const dm = {};
+  const put = (date)=>{ if(!dm[date]) dm[date]={user_id:uid,date,source:'manual'}; return dm[date]; };
+  entries.forEach(e=>{ if(!e.date) return; const r=put(e.date);
+    if(e.weight!=null)r.weight=e.weight; if(e.hrv!=null)r.hrv=e.hrv;
+    if(e.rhr!=null)r.rhr=e.rhr; if(e.recovery!=null)r.recovery=e.recovery; });
+  whoop.forEach(w=>{ if(!w.date) return; const r=put(w.date); r.source='whoop';
+    if(w.hrv_rmssd_on_wake!=null)r.hrv=Math.round(w.hrv_rmssd_on_wake);
+    if(w.resting_heart_rate!=null)r.rhr=w.resting_heart_rate;
+    if(w.recovery_score!=null)r.recovery=w.recovery_score;
+    if(w.sleep_duration_hours!=null)r.sleep_hours=w.sleep_duration_hours;
+    if(w.strain!=null)r.strain=w.strain; });
+  const dmRows = Object.values(dm).filter(r=>r.weight!=null||r.hrv!=null||r.rhr!=null||r.recovery!=null||r.sleep_hours!=null||r.strain!=null);
+  if(dmRows.length){
+    const {error}=await sb.from('daily_metrics').upsert(dmRows,{onConflict:'user_id,date'});
+    error ? log('daily_metrics: '+error.message,'err') : log(`daily_metrics: ${dmRows.length} days ✓`,'ok');
+  }
+
+  // ---- 2. sessions (many per day; skip Rest) ----
+  const { data: exSess } = await sb.from('sessions').select('date,type,volume');
+  const seen = new Set((exSess||[]).map(s=>`${s.date}|${s.type}|${s.volume}`));
+  const sessRows = entries
+    .filter(e=>e.date && e.sessionType && e.sessionType!=='Rest')
+    .map(e=>({user_id:uid,date:e.date,type:e.sessionType,volume:int(e.volume),
+              calories:int(e.sessionCalories),load:e.load??null,
+              avg_hr:int(e.avgHr),duration_min:int(e.duration),notes:e.notes||null,source:'manual'}))
+    .filter(s=>!seen.has(`${s.date}|${s.type}|${s.volume}`));
+  if(sessRows.length){
+    const {error}=await sb.from('sessions').insert(sessRows);
+    error ? log('sessions: '+error.message,'err') : log(`sessions: ${sessRows.length} added ✓`,'ok');
+  } else log('sessions: none new','dim');
+
+  // ---- 3. food_log ----
+  const { data: exFood } = await sb.from('food_log').select('date,meal,items');
+  const fseen = new Set((exFood||[]).map(f=>`${f.date}|${f.meal}|${f.items}`));
+  const foodRows = food
+    .filter(f=>f.date)
+    .map(f=>({user_id:uid,date:f.date,meal:f.meal,items:f.items,
+              protein:f.protein??null,calories:f.calories??null,notes:f.notes||null}))
+    .filter(f=>!fseen.has(`${f.date}|${f.meal}|${f.items}`));
+  if(foodRows.length){
+    const {error}=await sb.from('food_log').insert(foodRows);
+    error ? log('food_log: '+error.message,'err') : log(`food_log: ${foodRows.length} added ✓`,'ok');
+  } else log('food_log: none new','dim');
+
+  // ---- 4. body_composition (InBody) ----
+  const { data: exBody } = await sb.from('body_composition').select('date');
+  const bseen = new Set((exBody||[]).map(b=>b.date));
+  const bodyRows = INBODY.filter(b=>!bseen.has(b.date)).map(b=>({user_id:uid,...b}));
+  if(bodyRows.length){
+    const {error}=await sb.from('body_composition').insert(bodyRows);
+    error ? log('body_composition: '+error.message,'err') : log(`body_composition: ${bodyRows.length} added ✓`,'ok');
+  } else log('body_composition: none new','dim');
+
+  // ---- 5. photos → private Storage + metadata ----
+  const { data: exPhotos } = await sb.from('photos').select('storage_path');
+  const pseen = new Set((exPhotos||[]).map(p=>p.storage_path));
+  let pCount=0, pFail=0;
+  for(const p of photos){
+    if(!p.url) continue;
+    const path = `${uid}/${p.id}.jpg`;
+    if(pseen.has(path)) continue;
+    try{
+      const blob = dataURLtoBlob(p.url);
+      const { error: upErr } = await sb.storage.from('body-photos').upload(path, blob, {upsert:true, contentType:blob.type||'image/jpeg'});
+      if(upErr){ log('photo upload '+p.id+': '+upErr.message,'err'); pFail++; continue; }
+      const { error: metaErr } = await sb.from('photos').insert([{user_id:uid,date:p.date,label:p.label||null,weight:p.weight??null,notes:p.notes||null,storage_path:path}]);
+      if(metaErr){ log('photo meta '+p.id+': '+metaErr.message,'err'); pFail++; continue; }
+      pCount++; log(`  photo ${p.id} (${p.date}) ✓`,'dim');
+    }catch(e){ log('photo '+p.id+': '+e.message,'err'); pFail++; }
+  }
+  log(`photos: ${pCount} uploaded${pFail?`, ${pFail} failed`:''} ✓`, pFail?'warn':'ok');
+
+  log('\nMigration complete.','ok');
+  log('Verify in Supabase → Table Editor, then we build the new app on top.','dim');
+  btn.disabled=false;
+}
+</script>
+</body>
+</html>
