@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#070908">
+<title>Performance OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070908;--bg2:#0b0e0d;--surface:rgba(255,255,255,.035);--surface2:rgba(255,255,255,.06);
+  --line:rgba(255,255,255,.07);--text:#e9edeb;--dim:#69716d;--faint:#3b403d;
+  --accent:#00ff88;--green:#54e39a;--amber:#ffb24d;--red:#ff5e6c;--blue:#56d3ff;--warm:#ff8f5e;--violet:#b6a2ff;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--text);font-family:"Hanken Grotesk",sans-serif;-webkit-font-smoothing:antialiased}
+body{max-width:440px;margin:0 auto;min-height:100vh;position:relative;overflow-x:hidden;
+  background:radial-gradient(120% 60% at 80% -10%,rgba(0,255,136,.06),transparent 60%),radial-gradient(90% 50% at -10% 100%,rgba(86,211,255,.045),transparent 55%),var(--bg)}
+.mono{font-family:"Spline Sans Mono",monospace;font-feature-settings:"tnum"}
+.app{padding:0 18px 96px;display:none}
+::-webkit-scrollbar{width:0;height:0}
+input,select,textarea,button{font-family:inherit}
+
+/* auth */
+#auth{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;z-index:100;max-width:440px;margin:0 auto}
+#auth .logo{width:54px;height:54px;border-radius:15px;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.25);display:grid;place-items:center;font-size:24px;margin-bottom:22px}
+#auth .brand{font-size:9px;letter-spacing:3px;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:6px}
+#auth h1{font-size:22px;font-weight:800;margin-bottom:30px}
+.field{width:100%;max-width:320px;margin-bottom:12px}
+.field label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:5px;font-weight:600}
+.inp{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px 14px;color:#fff;font-size:14px;outline:none}
+.inp:focus{border-color:rgba(0,255,136,.4)}
+.btn{width:100%;max-width:320px;background:var(--accent);color:#000;border:none;border-radius:11px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.3px;margin-top:8px}
+.btn:disabled{opacity:.4}
+.msg{font-size:12px;margin-top:14px;text-align:center;min-height:16px}
+
+.top{display:flex;justify-content:space-between;align-items:center;padding:22px 0 18px;position:sticky;top:0;background:linear-gradient(var(--bg) 70%,transparent);z-index:20}
+.brand{font-size:9px;letter-spacing:3px;color:var(--accent);text-transform:uppercase;font-weight:700}
+.name{font-size:21px;font-weight:800;letter-spacing:-.5px;margin-top:1px}
+.pill{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-weight:600}
+.date{font-size:11px;color:var(--dim);text-align:right;margin-bottom:6px}
+.sec{display:flex;align-items:center;gap:10px;margin:26px 2px 12px}
+.sec h2{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);font-weight:700;white-space:nowrap}
+.sec .rule{height:1px;flex:1;background:linear-gradient(90deg,var(--line),transparent)}
+.sec .tag{font-size:9px;color:var(--faint);letter-spacing:1px}
+
+.hero{display:grid;grid-template-columns:1.15fr 1fr;gap:10px;margin-bottom:10px}
+.recov{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;min-height:128px}
+.recov .ring{position:absolute;right:-26px;top:-26px;width:120px;height:120px;border-radius:50%;background:conic-gradient(var(--rc,var(--green)) calc(var(--rv,0)*1%),rgba(255,255,255,.04) 0);-webkit-mask:radial-gradient(transparent 54%,#000 55%);mask:radial-gradient(transparent 54%,#000 55%);opacity:.9}
+.k{font-size:9px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim);font-weight:600}
+.big{font-size:44px;font-weight:300;line-height:.9;letter-spacing:-1px}
+.big small{font-size:14px;color:var(--faint);margin-left:2px}
+.delta{font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;margin-top:7px}
+.up{color:var(--green)}.down{color:var(--red)}.good{color:var(--green)}.mid{color:var(--amber)}
+.stack{display:flex;flex-direction:column;gap:10px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:13px 15px;flex:1;display:flex;flex-direction:column;justify-content:center}
+.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.07);margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.sess{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:6px;display:flex;flex-direction:column;gap:2px;margin-top:10px}
+.srow{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:13px}
+.sdot{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:15px;flex-shrink:0}
+.smeta{flex:1;min-width:0}.stype{font-size:13px;font-weight:600}.ssub{font-size:10px;color:var(--dim)}
+.sval{text-align:right}.sval .v{font-size:14px;font-weight:600}.sval .u{font-size:9px;color:var(--faint)}
+.empty{padding:14px 16px;font-size:12px;color:var(--faint);text-align:center}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 15px 8px;cursor:pointer;transition:.18s;position:relative;overflow:hidden}
+.tcard:active{transform:scale(.98)}.tcard:hover{background:var(--surface2)}
+.tcard .top2{display:flex;justify-content:space-between;align-items:flex-start}
+.tcard .val{font-size:25px;font-weight:300;letter-spacing:-.5px;margin-top:2px}
+.tcard .val small{font-size:11px;color:var(--faint);margin-left:1px}
+.spark{margin-top:4px}
+
+.insight{background:linear-gradient(135deg,rgba(0,255,136,.05),rgba(86,211,255,.03));border:1px solid rgba(0,255,136,.12);border-radius:20px;padding:18px}
+.insight .lead{font-size:13px;line-height:1.55;color:#cdd4d0;font-weight:500}
+.insight .lead b{color:var(--accent);font-weight:700}
+
+.pgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.pcell{aspect-ratio:3/4;border-radius:13px;overflow:hidden;border:1px solid var(--line);position:relative;background:#0e1211;cursor:pointer;display:grid;place-items:center}
+.pcell img{width:100%;height:100%;object-fit:cover}
+.pcell .w{position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.6);border-radius:6px;padding:2px 6px;font-size:9px;color:var(--accent);font-family:"Spline Sans Mono"}
+.pcell .d{position:absolute;top:6px;left:6px;font-size:8px;color:#fff;font-family:"Spline Sans Mono";background:rgba(0,0,0,.5);padding:1px 5px;border-radius:5px}
+
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;display:flex;justify-content:space-around;padding:10px 24px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 38%);backdrop-filter:blur(8px);z-index:30}
+.nb{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--faint);cursor:pointer;font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:600}
+.nb.on{color:var(--accent)}.nb svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8}
+.fab{position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));right:max(18px,calc(50% - 202px));width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;font-size:26px;font-weight:300;cursor:pointer;z-index:31;box-shadow:0 6px 20px rgba(0,255,136,.3)}
+
+.ov{position:fixed;inset:0;background:rgba(3,5,4,.6);backdrop-filter:blur(6px);z-index:50;display:none;align-items:flex-end;justify-content:center}
+.ov.show{display:flex;animation:fade .2s}
+.sheet{background:var(--bg2);border:1px solid var(--line);border-radius:26px 26px 0 0;width:100%;max-width:440px;max-height:92vh;overflow-y:auto;padding:10px 20px 30px;animation:slide .26s cubic-bezier(.2,.8,.2,1)}
+.grab{width:38px;height:4px;background:var(--faint);border-radius:99px;margin:8px auto 16px}
+.dh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.dval{font-size:38px;font-weight:300;letter-spacing:-1px}.dval small{font-size:14px;color:var(--faint)}
+.toggle{display:flex;gap:4px;background:rgba(255,255,255,.04);border-radius:11px;padding:4px;margin:18px 0}
+.toggle button{flex:1;background:none;border:none;color:var(--dim);font-size:11px;font-weight:600;padding:7px;border-radius:8px;cursor:pointer}
+.toggle button.on{background:rgba(0,255,136,.12);color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.stat{background:var(--surface);border-radius:13px;padding:11px 13px}
+.stat .l{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim)}
+.stat .s{font-size:17px;font-weight:600;margin-top:2px}
+.li{display:flex;justify-content:space-between;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+.x{background:none;border:1px solid var(--line);color:var(--dim);border-radius:9px;padding:7px 11px;font-size:11px;cursor:pointer}
+.sheet h3{font-size:16px;font-weight:700;margin-bottom:4px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.frow .full{grid-column:1/-1}
+.lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:5px;font-weight:600}
+.est{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.25);color:var(--accent);border-radius:9px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;width:100%;margin-top:8px}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:60;display:none;align-items:center;justify-content:center;padding:20px;flex-direction:column}
+.lightbox.show{display:flex}.lightbox img{max-width:100%;max-height:78vh;border-radius:14px}
+
+@keyframes fade{from{opacity:0}}@keyframes slide{from{transform:translateY(40px);opacity:.4}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.r{opacity:0;animation:rise .5s forwards}
+.setup{background:rgba(255,178,77,.08);border:1px solid rgba(255,178,77,.25);color:var(--amber);border-radius:12px;padding:14px;font-size:12px;line-height:1.5;margin:14px 0}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth">
+  <div class="logo">💪</div>
+  <div class="brand">Performance OS</div>
+  <h1>Sign in</h1>
+  <div id="setupNote"></div>
+  <div class="field"><label>Email</label><input class="inp" id="au_email" type="email" autocomplete="email"></div>
+  <div class="field"><label>Password</label><input class="inp" id="au_pass" type="password" autocomplete="current-password"></div>
+  <button class="btn" id="au_btn" onclick="signIn()">Sign in</button>
+  <div class="msg" id="au_msg"></div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <div class="top">
+    <div><div class="brand">Performance OS</div><div class="name">Saurabh</div></div>
+    <div><div class="date" id="hdr_date"></div><div class="pill" id="hdr_block">Block 3</div></div>
+  </div>
+  <div id="view"></div>
+</div>
+
+<button class="fab" id="fab" style="display:none" onclick="openLogPicker()">+</button>
+
+<div class="nav" id="nav" style="display:none">
+  <div class="nb on" data-tab="home" onclick="go('home',this)"><svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Home</div>
+  <div class="nb" data-tab="trends" onclick="go('trends',this)"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/></svg>Trends</div>
+  <div class="nb" data-tab="photos" onclick="go('photos',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photos</div>
+  <div class="nb" data-tab="you" onclick="go('you',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>You</div>
+</div>
+
+<!-- detail sheet -->
+<div class="ov" id="ov" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet" id="sheet"></div>
+</div>
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('show')"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ============ CONFIG ============
+const CFG = {
+  SUPABASE_URL: 'https://uebeeqjrwmyntqmfndhf.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlYmVlcWpyd215bnRxbWZuZGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTcyNTcsImV4cCI6MjA5NTgzMzI1N30.WMstLi5kI_KnLYO5GEOYyIxmdGgSUv3Pmbgqi130ykY',
+  BACKEND_URL: 'https://performance-os-backend-production.up.railway.app', // macro estimation (endpoint added later)
+};
+const TARGET = {protein:162, calories:1700};
+const COLORS={Rings:'#00ff88',Handstand:'#56d3ff',Planche:'#ff8f5e',Bars:'#ff5e6c',Bouldering:'#b6a2ff',Golf:'#54e39a','Freestyle/Hybrid':'#ff9dce','Cardio/Treadmill':'#ffb24d',Treadmill:'#ffb24d',Rest:'#3b403d'};
+const ICONS={Rings:'🤸',Handstand:'🙃',Planche:'💪',Bars:'🏋️',Bouldering:'🧗',Golf:'⛳','Freestyle/Hybrid':'🔀','Cardio/Treadmill':'🏃',Treadmill:'🏃',Rest:'😴'};
+const MEALS=['breakfast','pre-workout','post-workout','lunch','snack','dinner','late-night'];
+
+let sb, UID, STATE={dm:[],ss:[],fl:[],bc:[],ph:[]};
+const today = () => new Date().toISOString().slice(0,10);
+const $ = id => document.getElementById(id);
+
+// ============ AUTH ============
+function initClient(){
+  if(CFG.SUPABASE_ANON_KEY.startsWith('PASTE')){
+    $('setupNote').innerHTML='<div class="setup">⚠ Paste your Supabase anon key into the CFG block at the top of this file before deploying.</div>';
+    return false;
+  }
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  return true;
+}
+async function boot(){
+  if(!initClient()) return;
+  const {data:{session}} = await sb.auth.getSession();
+  if(session){ UID=session.user.id; await enter(); }
+}
+async function signIn(){
+  const btn=$('au_btn'); btn.disabled=true; $('au_msg').textContent='Signing in…'; $('au_msg').style.color='var(--dim)';
+  const {data,error}=await sb.auth.signInWithPassword({email:$('au_email').value.trim(),password:$('au_pass').value});
+  if(error){ $('au_msg').textContent=error.message; $('au_msg').style.color='var(--red)'; btn.disabled=false; return; }
+  UID=data.user.id; await enter();
+}
+async function enter(){
+  $('auth').style.display='none'; $('app').style.display='block'; $('nav').style.display='flex'; $('fab').style.display='block';
+  const d=new Date(); $('hdr_date').textContent=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+  await loadAll(); go('home');
+}
+async function signOut(){ await sb.auth.signOut(); location.reload(); }
+
+// ============ DATA ============
+async function loadAll(){
+  const [dm,ss,fl,bc,ph] = await Promise.all([
+    sb.from('daily_metrics').select('*').order('date'),
+    sb.from('sessions').select('*').order('date'),
+    sb.from('food_log').select('*').order('date'),
+    sb.from('body_composition').select('*').order('date'),
+    sb.from('photos').select('*').order('date',{ascending:false}),
+  ]);
+  STATE={dm:dm.data||[],ss:ss.data||[],fl:fl.data||[],bc:bc.data||[],ph:ph.data||[]};
+}
+// nutrition aggregated per day from food_log
+function nutByDay(){
+  const m={};
+  STATE.fl.forEach(f=>{ if(!f.date)return; const r=m[f.date]||(m[f.date]={date:f.date,protein:0,calories:0,carbs:0,fat:0});
+    r.protein+=+f.protein||0; r.calories+=+f.calories||0; r.carbs+=+f.carbs||0; r.fat+=+f.fat||0; });
+  return Object.values(m).sort((a,b)=>a.date<b.date?-1:1);
+}
+function volByDay(){
+  const m={};
+  STATE.ss.forEach(s=>{ if(!s.volume)return; m[s.date]=(m[s.date]||0)+s.volume; });
+  return Object.entries(m).map(([date,v])=>({date,v})).sort((a,b)=>a.date<b.date?-1:1);
+}
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+function series(key){
+  if(key==='weight')return STATE.dm.filter(d=>d.weight!=null).map(d=>({date:d.date,v:d.weight}));
+  if(key==='recovery')return STATE.dm.filter(d=>d.recovery!=null).map(d=>({date:d.date,v:d.recovery}));
+  if(key==='hrv')return STATE.dm.filter(d=>d.hrv!=null).map(d=>({date:d.date,v:d.hrv}));
+  if(key==='rhr')return STATE.dm.filter(d=>d.rhr!=null).map(d=>({date:d.date,v:d.rhr}));
+  if(key==='bodyfat')return STATE.bc.filter(d=>d.body_fat!=null).map(d=>({date:d.date,v:d.body_fat}));
+  if(key==='volume')return volByDay();
+  const n=nutByDay(); return n.filter(d=>d[key]!=null).map(d=>({date:d.date,v:Math.round(d[key])}));
+}
+const META={
+  weight:{label:'Weight',unit:'kg',color:'#00ff88',target:65.5,lowerBetter:true},
+  bodyfat:{label:'Body Fat',unit:'%',color:'#ff8f5e',target:8,lowerBetter:true},
+  volume:{label:'Session Volume',unit:'kg',color:'#ff5e6c'},
+  recovery:{label:'Recovery',unit:'%',color:'#b6a2ff',target:67},
+  protein:{label:'Protein',unit:'g',color:'#54e39a',target:162},
+  calories:{label:'Calories',unit:'kcal',color:'#ff8f5e',target:1700},
+  carbs:{label:'Carbs',unit:'g',color:'#56d3ff'},
+  fat:{label:'Fat',unit:'g',color:'#b6a2ff'},
+};
+
+// ============ SVG ============
+function buildPath(s,W,H,pad){const v=s.map(p=>p.v);const mn=Math.min(...v),mx=Math.max(...v),r=(mx-mn)||1;
+  const x=i=>pad+(s.length<2?0.5:i/(s.length-1))*(W-pad*2),y=val=>H-pad-(val-mn)/r*(H-pad*2);
+  let d='';s.forEach((p,i)=>d+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1)+' ');return{d,x,y,mn,mx}}
+function sparkSVG(key){const c=META[key];const s=series(key).slice(-20);
+  if(s.length<2)return `<svg class="spark" viewBox="0 0 180 36" height="36" width="100%"><text x="6" y="22" fill="#3b403d" font-size="9" font-family="Spline Sans Mono">no data yet</text></svg>`;
+  const W=180,H=36,pad=3,p=buildPath(s,W,H,pad),id='s'+key;
+  return `<svg class="spark" viewBox="0 0 180 36" height="36" width="100%"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c.color}" stop-opacity=".28"/><stop offset="1" stop-color="${c.color}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${p.d}L${W-pad} ${H} L${pad} ${H} Z" fill="url(#${id})"/><path d="${p.d}" fill="none" stroke="${c.color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${p.x(s.length-1)}" cy="${p.y(s[s.length-1].v)}" r="2.6" fill="${c.color}"/></svg>`;
+}
+function fmt(v,key){if(v==null)return'—';if(key==='volume')return(v/1000).toFixed(1);return v}
+
+// ============ NAV ============
+function go(tab,el){
+  document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  if(el)document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on')),el.classList.add('on');
+  if(tab==='home')renderHome();else if(tab==='trends')renderTrends();else if(tab==='photos')renderPhotos();else renderYou();
+  window.scrollTo(0,0);
+}
+
+// ============ HOME ============
+function renderHome(){
+  const t=today();
+  const dm=STATE.dm.find(d=>d.date===t)||{};
+  const todaySess=STATE.ss.filter(s=>s.date===t);
+  const nut=nutByDay();
+  const todayNut=nut.find(n=>n.date===t)||{protein:0,calories:0,carbs:0,fat:0};
+  const isTraining=todaySess.some(s=>s.type&&s.type!=='Rest');
+  const pTarget=isTraining?162:140, cTarget=isTraining?1700:1500;
+  // recovery + baseline
+  const recS=series('recovery'); const rec=dm.recovery??(recS.length?recS[recS.length-1].v:null);
+  const rec7=avg(recS.slice(-8,-1).map(d=>d.v));
+  const recColor=rec>=67?'var(--green)':rec>=34?'var(--amber)':'var(--red)';
+  const wS=series('weight'); const wt=dm.weight??(wS.length?wS[wS.length-1].v:null);
+  const w30=avg(wS.slice(-31,-1).map(d=>d.v));
+  const recDelta=(rec!=null&&rec7!=null)?Math.round(rec-rec7):null;
+  const wDelta=(wt!=null&&w30!=null)?(wt-w30):null;
+  // insight
+  const pAvg=avg(nut.slice(-30).map(n=>n.protein));
+  const wDrop=(wS.length>1)?(wS[wS.length-1].v-(wS.slice(-30)[0]?.v??wS[wS.length-1].v)):null;
+  const bf=series('bodyfat'); const bfLast=bf.length?bf[bf.length-1].v:null;
+
+  $('view').innerHTML=`
+  <div class="hero">
+    <div class="recov r" style="--rv:${rec||0};--rc:${recColor}">
+      <div class="ring"></div><div class="k">Recovery</div>
+      <div><div class="big mono" style="color:${rec!=null?recColor:'var(--faint)'}">${rec??'—'}<small>${rec!=null?'%':''}</small></div>
+      ${recDelta!=null?`<div class="delta ${recDelta>=0?'up':'down'}">${recDelta>=0?'▲':'▼'} ${Math.abs(recDelta)} vs 7-day</div>`:'<div class="delta" style="color:var(--faint)">no Whoop today</div>'}</div>
+    </div>
+    <div class="stack">
+      <div class="chip r" style="animation-delay:.05s"><div class="k">Protein · today</div>
+        <div class="mono" style="font-size:19px">${Math.round(todayNut.protein)}<span style="color:var(--faint);font-size:12px"> / ${pTarget}g</span></div>
+        <div class="bar"><i style="width:${Math.min(100,todayNut.protein/pTarget*100)}%"></i></div></div>
+      <div class="chip r" style="animation-delay:.1s"><div class="k">Weight</div>
+        <div class="mono" style="font-size:19px">${wt??'—'}<span style="color:var(--faint);font-size:12px">${wt!=null?'kg':''}</span></div>
+        ${wDelta!=null?`<div class="delta ${wDelta<=0?'down':'up'}" style="margin-top:3px">${wDelta<=0?'▼':'▲'} ${Math.abs(wDelta).toFixed(1)} vs 30-day</div>`:''}</div>
+    </div>
+  </div>
+  <div class="sess r" style="animation-delay:.14s">
+    ${todaySess.length?todaySess.map(s=>`<div class="srow">
+      <div class="sdot" style="background:${(COLORS[s.type]||'#333')}22;color:${COLORS[s.type]||'#888'}">${ICONS[s.type]||'💪'}</div>
+      <div class="smeta"><div class="stype">${s.type}</div><div class="ssub">${[s.notes,s.source==='garmin'?'Garmin':''].filter(Boolean).join(' · ')||'&nbsp;'}</div></div>
+      <div class="sval">${s.volume?`<div class="v mono" style="color:${COLORS[s.type]||'#fff'}">${s.volume.toLocaleString()}</div><div class="u">kg</div>`:s.calories?`<div class="v mono" style="color:${COLORS[s.type]}">${s.calories}</div><div class="u">kcal</div>`:''}</div>
+    </div>`).join(''):'<div class="empty">No sessions logged today · tap + to add</div>'}
+  </div>
+
+  <div class="sec"><h2>Trends</h2><div class="rule"></div><span class="tag">TAP TO EXPAND</span></div>
+  <div class="grid">${['weight','bodyfat','volume','recovery'].map((k,i)=>trendCard(k,i)).join('')}</div>
+
+  <div class="sec"><h2>Insight</h2><div class="rule"></div></div>
+  <div class="insight r">${(pAvg!=null&&wDrop!=null)?
+    `<div class="lead">Protein averaged <b>${Math.round(pAvg)}g/day</b> over 30 days while weight ${wDrop<=0?'fell':'rose'} <b>${Math.abs(wDrop).toFixed(1)}kg</b>${bfLast!=null?` at <b>${bfLast}% BF</b>`:''}. ${wDrop<=0?'The deficit is translating — keep auditing accuracy.':'Weight ticked up — check intake accuracy before adjusting.'}</div>`
+    :`<div class="lead">Log a few more days of food and weight and this will surface the protein-vs-weight relationship.</div>`}</div>
+
+  <div class="sec"><h2>Macros</h2><div class="rule"></div><span class="tag">TAP FOR TREND</span></div>
+  <div class="grid">${['protein','calories','carbs','fat'].map((k,i)=>trendCard(k,i,todayNut)).join('')}</div>`;
+}
+function trendCard(key,i,todayNut){
+  const c=META[key];const s=series(key);const last=s.length?s[s.length-1].v:null;
+  let display=last;
+  if(todayNut&&todayNut[key]!=null)display=Math.round(todayNut[key]); // macros show today's running total
+  return `<div class="tcard r" style="animation-delay:${.18+i*.04}s" onclick="openDetail('${key}')">
+    <div class="top2"><div class="k">${c.label}</div></div>
+    <div class="val mono">${fmt(display,key)}<small>${key==='volume'?'t':c.unit}</small></div>
+    ${sparkSVG(key)}</div>`;
+}
+
+// ============ TRENDS TAB ============
+function renderTrends(){
+  $('view').innerHTML=`<div class="sec" style="margin-top:6px"><h2>All Trends</h2><div class="rule"></div></div>
+  <div class="grid">${Object.keys(META).map((k,i)=>trendCard(k,i)).join('')}</div>`;
+}
+
+// ============ DETAIL SHEET ============
+let curKey,curRange;
+function openDetail(key){curKey=key;const all=series(key);curRange=Math.min(30,all.length||1);drawDetail(true);$('ov').classList.add('show')}
+function setRange(n,btn){curRange=n;[...btn.parentNode.children].forEach(b=>b.classList.remove('on'));btn.classList.add('on');drawDetail(false)}
+function closeSheet(){$('ov').classList.remove('show')}
+function drawDetail(rebuild){
+  const c=META[curKey],all=series(curKey);
+  if(!all.length){$('sheet').innerHTML=`<div class="grab"></div><div class="dh"><h3>${c.label}</h3><button class="x" onclick="closeSheet()">✕</button></div><div class="empty">No data yet for ${c.label}.</div>`;return;}
+  const s=all.slice(-curRange);const W=360,H=180,pad=24,p=buildPath(s,W,H,pad);
+  const v=s.map(d=>d.v),mn=Math.min(...v),mx=Math.max(...v),r=(mx-mn)||1,y=val=>H-pad-(val-mn)/r*(H-pad*2);
+  let grid='';for(let i=0;i<=3;i++){const yy=pad+i/3*(H-pad*2);grid+=`<line x1="${pad}" y1="${yy}" x2="${W-pad}" y2="${yy}" stroke="rgba(255,255,255,.05)"/>`}
+  let tgt='';if(c.target&&c.target>=mn&&c.target<=mx)tgt=`<line x1="${pad}" y1="${y(c.target)}" x2="${W-pad}" y2="${y(c.target)}" stroke="${c.color}" stroke-opacity=".4" stroke-dasharray="4 4"/><text x="${W-pad}" y="${y(c.target)-4}" text-anchor="end" fill="${c.color}" opacity=".6" font-size="8" font-family="Spline Sans Mono">target ${c.target}</text>`;
+  const dots=s.map((d,i)=>`<circle cx="${p.x(i)}" cy="${y(d.v)}" r="2.4" fill="${c.color}"/>`).join('');
+  const best=c.lowerBetter?Math.min(...v):Math.max(...v),av=avg(v);
+  const ranges=curKey==='bodyfat'?[['All',all.length]]:curKey==='volume'?[['14d',14],['30d',30],['All',all.length]]:[['7d',7],['30d',30],['90d',90]];
+  if(rebuild&&!ranges.find(rr=>rr[1]===curRange))curRange=ranges[0][1];
+  $('sheet').innerHTML=`<div class="grab"></div>
+    <div class="dh"><div><div class="k">${c.label}</div><div class="dval mono">${v[v.length-1]}<small> ${c.unit}</small></div></div>
+      <button class="x" onclick="closeSheet()">✕ Close</button></div>
+    <div class="toggle">${ranges.map(([l,n])=>`<button class="${n===curRange?'on':''}" onclick="setRange(${n},this)">${l}</button>`).join('')}</div>
+    <svg viewBox="0 0 360 180" width="100%" height="180" style="background:rgba(255,255,255,.02);border-radius:12px"><defs><linearGradient id="dg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c.color}" stop-opacity=".25"/><stop offset="1" stop-color="${c.color}" stop-opacity="0"/></linearGradient></defs>
+      ${grid}${tgt}<path d="${p.d}L${W-pad} ${H-pad} L${pad} ${H-pad} Z" fill="url(#dg)"/><path d="${p.d}" fill="none" stroke="${c.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>${dots}</svg>
+    <div class="stats">${[['Latest',v[v.length-1]],['Best',best],['Avg',av.toFixed(1)]].map(([l,x])=>`<div class="stat"><div class="l">${l}</div><div class="s mono" style="color:${c.color}">${x}<span style="font-size:10px;color:var(--faint)"> ${c.unit}</span></div></div>`).join('')}</div>
+    <div>${[...s].reverse().slice(0,10).map(d=>`<div class="li"><span class="mono" style="color:var(--dim)">${d.date}</span><span class="mono" style="color:${c.color}">${d.v} ${c.unit}</span></div>`).join('')}</div>`;
+}
+
+// ============ LOGGING ============
+function openLogPicker(){
+  $('sheet').innerHTML=`<div class="grab"></div><h3>Log</h3><div class="frow" style="grid-template-columns:1fr">
+    <button class="est" onclick="logFood()">🍽 Food</button>
+    <button class="est" onclick="logSession()">🏋️ Workout / Session</button>
+    <button class="est" onclick="logMetrics()">📊 Daily metrics (weight, recovery…)</button>
+  </div>`;$('ov').classList.add('show');
+}
+function logFood(){
+  $('sheet').innerHTML=`<div class="grab"></div><h3>Log food</h3>
+    <div class="frow"><div class="full"><span class="lbl">Describe the meal</span><textarea class="inp" id="f_desc" rows="2" placeholder="2 eggs, banana, double espresso"></textarea>
+      <button class="est" id="f_estbtn" onclick="estimate()">✨ Estimate macros</button></div>
+      <div><span class="lbl">Date</span><input class="inp" id="f_date" type="date" value="${today()}"></div>
+      <div><span class="lbl">Meal</span><select class="inp" id="f_meal">${MEALS.map(m=>`<option>${m}</option>`).join('')}</select></div>
+      <div><span class="lbl">Protein g</span><input class="inp mono" id="f_protein" type="number"></div>
+      <div><span class="lbl">Calories</span><input class="inp mono" id="f_calories" type="number"></div>
+      <div><span class="lbl">Carbs g</span><input class="inp mono" id="f_carbs" type="number"></div>
+      <div><span class="lbl">Fat g</span><input class="inp mono" id="f_fat" type="number"></div>
+    </div>
+    <button class="btn" style="max-width:none" onclick="saveFood()">Save</button>`;
+  $('ov').classList.add('show');
+}
+async function estimate(){
+  const desc=$('f_desc').value.trim();if(!desc)return;
+  const b=$('f_estbtn');b.textContent='Estimating…';b.disabled=true;
+  try{
+    const r=await fetch(CFG.BACKEND_URL+'/estimate-macros',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc})});
+    if(!r.ok)throw new Error();
+    const m=await r.json();
+    $('f_protein').value=Math.round(m.protein); $('f_calories').value=Math.round(m.calories);
+    $('f_carbs').value=Math.round(m.carbs); $('f_fat').value=Math.round(m.fat);
+    b.textContent='✨ Re-estimate';
+  }catch(e){ b.textContent='✨ Estimate (offline — enter manually)'; }
+  b.disabled=false;
+}
+const num=id=>{const v=$(id).value;return v===''?null:+v};
+async function saveFood(){
+  const row={user_id:UID,date:$('f_date').value,meal:$('f_meal').value,items:$('f_desc').value,
+    protein:num('f_protein'),calories:num('f_calories'),carbs:num('f_carbs'),fat:num('f_fat')};
+  const {error}=await sb.from('food_log').insert([row]);
+  if(error)return alert(error.message);
+  await loadAll();closeSheet();go('home');
+}
+function logSession(){
+  $('sheet').innerHTML=`<div class="grab"></div><h3>Log session</h3>
+    <p style="font-size:11px;color:var(--dim);margin-top:4px">Each save adds a session — log as many per day as you trained.</p>
+    <div class="frow"><div><span class="lbl">Date</span><input class="inp" id="s_date" type="date" value="${today()}"></div>
+      <div><span class="lbl">Type</span><select class="inp" id="s_type">${Object.keys(ICONS).map(t=>`<option>${t}</option>`).join('')}</select></div>
+      <div><span class="lbl">Volume kg</span><input class="inp mono" id="s_volume" type="number"></div>
+      <div><span class="lbl">Calories</span><input class="inp mono" id="s_calories" type="number"></div>
+      <div><span class="lbl">Avg HR</span><input class="inp mono" id="s_avg_hr" type="number"></div>
+      <div><span class="lbl">Duration min</span><input class="inp mono" id="s_duration" type="number"></div>
+      <div class="full"><span class="lbl">Notes</span><input class="inp" id="s_notes" placeholder="Strict MU 3·3·4"></div>
+    </div><button class="btn" style="max-width:none" onclick="saveSession()">Add session</button>`;
+  $('ov').classList.add('show');
+}
+async function saveSession(){
+  const row={user_id:UID,date:$('s_date').value,type:$('s_type').value,volume:num('s_volume'),
+    calories:num('s_calories'),avg_hr:num('s_avg_hr'),duration_min:num('s_duration'),notes:$('s_notes').value||null,source:'manual'};
+  const {error}=await sb.from('sessions').insert([row]);
+  if(error)return alert(error.message);
+  await loadAll();closeSheet();go('home');
+}
+function logMetrics(){
+  const ex=STATE.dm.find(d=>d.date===today())||{};
+  $('sheet').innerHTML=`<div class="grab"></div><h3>Daily metrics</h3>
+    <div class="frow"><div class="full"><span class="lbl">Date</span><input class="inp" id="m_date" type="date" value="${today()}"></div>
+      <div><span class="lbl">Weight kg</span><input class="inp mono" id="m_weight" type="number" step="0.1" value="${ex.weight??''}"></div>
+      <div><span class="lbl">Recovery %</span><input class="inp mono" id="m_recovery" type="number" value="${ex.recovery??''}"></div>
+      <div><span class="lbl">HRV ms</span><input class="inp mono" id="m_hrv" type="number" value="${ex.hrv??''}"></div>
+      <div><span class="lbl">RHR bpm</span><input class="inp mono" id="m_rhr" type="number" value="${ex.rhr??''}"></div>
+      <div><span class="lbl">Sleep h</span><input class="inp mono" id="m_sleep_hours" type="number" step="0.1" value="${ex.sleep_hours??''}"></div>
+      <div><span class="lbl">Strain</span><input class="inp mono" id="m_strain" type="number" step="0.1" value="${ex.strain??''}"></div>
+    </div><button class="btn" style="max-width:none" onclick="saveMetrics()">Save</button>`;
+  $('ov').classList.add('show');
+}
+async function saveMetrics(){
+  const row={user_id:UID,date:$('m_date').value,weight:num('m_weight'),recovery:num('m_recovery'),
+    hrv:num('m_hrv'),rhr:num('m_rhr'),sleep_hours:num('m_sleep_hours'),strain:num('m_strain'),source:'manual'};
+  const {error}=await sb.from('daily_metrics').upsert([row],{onConflict:'user_id,date'});
+  if(error)return alert(error.message);
+  await loadAll();closeSheet();go('home');
+}
+
+// ============ PHOTOS ============
+async function renderPhotos(){
+  $('view').innerHTML=`<div class="sec" style="margin-top:6px"><h2>Progress · Private</h2><div class="rule"></div>
+    <label class="tag" style="color:var(--accent);cursor:pointer">+ ADD<input type="file" accept="image/*" style="display:none" onchange="uploadPhoto(event)"></label></div>
+    <div class="pgrid" id="pgrid">${STATE.ph.length?STATE.ph.map(p=>`<div class="pcell" id="pc_${p.id}"><div class="d">${(p.date||'').slice(5)}</div>${p.weight?`<div class="w">${p.weight}kg</div>`:''}</div>`).join(''):'<div class="empty" style="grid-column:1/-1">No photos yet</div>'}</div>`;
+  for(const p of STATE.ph){
+    const {data}=await sb.storage.from('body-photos').createSignedUrl(p.storage_path,3600);
+    if(data?.signedUrl){const cell=$('pc_'+p.id);if(cell)cell.insertAdjacentHTML('afterbegin',`<img src="${data.signedUrl}" onclick="lightbox('${data.signedUrl}')">`);}
+  }
+}
+function lightbox(url){const l=$('lightbox');l.innerHTML=`<img src="${url}">`;l.classList.add('show');}
+async function uploadPhoto(e){
+  const file=e.target.files[0];if(!file)return;
+  const id=crypto.randomUUID();const path=`${UID}/${id}.jpg`;
+  const {error:upErr}=await sb.storage.from('body-photos').upload(path,file,{upsert:true,contentType:file.type});
+  if(upErr)return alert(upErr.message);
+  const w=prompt('Weight at this photo (kg)? optional')||null;
+  const {error}=await sb.from('photos').insert([{user_id:UID,date:today(),storage_path:path,weight:w?+w:null}]);
+  if(error)return alert(error.message);
+  await loadAll();renderPhotos();
+}
+
+// ============ YOU ============
+function renderYou(){
+  $('view').innerHTML=`<div class="sec" style="margin-top:6px"><h2>You</h2><div class="rule"></div></div>
+    <div class="chip"><div class="k">Signed in</div><div style="font-size:13px;margin-top:3px">${UID.slice(0,8)}…</div></div>
+    <div style="margin-top:10px;display:grid;gap:8px">
+      <div class="chip"><div class="k">Data</div><div style="font-size:12px;color:var(--dim);margin-top:3px">${STATE.dm.length} metric-days · ${STATE.ss.length} sessions · ${STATE.fl.length} food · ${STATE.ph.length} photos · ${STATE.bc.length} InBody</div></div>
+    </div>
+    <button class="btn" style="max-width:none;background:none;border:1px solid rgba(255,94,108,.3);color:var(--red);margin-top:16px" onclick="signOut()">Sign out</button>`;
+}
+
+boot();
+</script>
+</body>
+</html>
