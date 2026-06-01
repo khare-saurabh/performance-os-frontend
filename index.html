@@ -480,14 +480,15 @@ function renderRecovery(){
     `<button onclick="connectWhoop()" style="background:rgba(179,136,255,.1);border:1px solid rgba(179,136,255,.25);color:var(--violet);border-radius:8px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:inherit">Connect Whoop</button>`}
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-      ${[['Recovery','%',dm.recovery,dm.recovery!=null?rc(dm.recovery):'var(--faint)','var(--violet)'],
+      ${(()=>{const fv=v=>v==null?null:(Number.isInteger(v)?v:+v.toFixed(1));
+      return [['Recovery','%',dm.recovery,dm.recovery!=null?rc(dm.recovery):'var(--faint)','var(--violet)'],
          ['HRV','ms',dm.hrv,null,'var(--blue)'],['RHR','bpm',dm.rhr,null,'var(--amber)'],
-         ['Sleep','h',dm.sleep_hours,null,'var(--green)'],['Strain','',dm.strain,null,'var(--red)']].map(([l,u,v,vc,ac])=>`
+         ['Sleep','h',fv(dm.sleep_hours),null,'var(--green)'],['Strain','',fv(dm.strain),null,'var(--red)']].map(([l,u,v,vc,ac])=>`
         <div style="background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 14px;position:relative;overflow:hidden">
           <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${ac},transparent)"></div>
           <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim)">${l}</div>
           <div class="mono" style="font-size:19px;color:${v!=null?(vc||ac):'var(--faint)'};font-weight:300">${v??'—'}<span style="font-size:9px;color:var(--faint);margin-left:1px">${v!=null?u:''}</span></div>
-        </div>`).join('')}
+        </div>`).join('');})()}
     </div>
     ${recent.length>1?`<div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px">
       <div class="label" style="margin-bottom:10px">Recovery % · last ${recent.length} days</div>
