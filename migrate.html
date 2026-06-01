@@ -39,6 +39,7 @@
 const logEl = document.getElementById('log');
 let firstLog = true;
 function log(msg, cls=''){ if(firstLog){logEl.innerHTML='';firstLog=false;} logEl.innerHTML += `<span class="${cls}">${msg}</span>\n`; logEl.scrollTop = logEl.scrollHeight; }
+const int = v => (v==null || isNaN(v)) ? null : Math.round(+v);  // integer columns (volume etc.) — round bodyweight decimals
 
 // InBody history is in the app CODE, not your local DB, so it's embedded here.
 const INBODY = [
@@ -125,9 +126,9 @@ async function migrate(){
   const seen = new Set((exSess||[]).map(s=>`${s.date}|${s.type}|${s.volume}`));
   const sessRows = entries
     .filter(e=>e.date && e.sessionType && e.sessionType!=='Rest')
-    .map(e=>({user_id:uid,date:e.date,type:e.sessionType,volume:e.volume??null,
-              calories:e.sessionCalories??null,load:e.load??null,
-              avg_hr:e.avgHr??null,duration_min:e.duration??null,notes:e.notes||null,source:'manual'}))
+    .map(e=>({user_id:uid,date:e.date,type:e.sessionType,volume:int(e.volume),
+              calories:int(e.sessionCalories),load:e.load??null,
+              avg_hr:int(e.avgHr),duration_min:int(e.duration),notes:e.notes||null,source:'manual'}))
     .filter(s=>!seen.has(`${s.date}|${s.type}|${s.volume}`));
   if(sessRows.length){
     const {error}=await sb.from('sessions').insert(sessRows);
