@@ -135,7 +135,7 @@ input,select,textarea,button{font-family:inherit}
 <div class="app" id="app">
   <div class="top">
     <div><div class="brand">Performance OS</div><div class="name">Saurabh</div></div>
-    <div><div class="date" id="hdr_date"></div><div class="pill" id="hdr_block">Block 3</div></div>
+    <div><div class="date" id="hdr_date"></div><div style="display:flex;gap:6px;align-items:center"><div class="pill" id="hdr_block">Block 3</div><div onclick="go('you')" style="width:28px;height:28px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;font-size:13px" title="Settings">⚙️</div></div></div>
   </div>
   <div id="view"></div>
 </div>
@@ -144,9 +144,10 @@ input,select,textarea,button{font-family:inherit}
 
 <div class="nav" id="nav" style="display:none">
   <div class="nb on" data-tab="home" onclick="go('home',this)"><svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Home</div>
-  <div class="nb" data-tab="trends" onclick="go('trends',this)"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/></svg>Trends</div>
+  <div class="nb" data-tab="training" onclick="go('training',this)"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 9h18M3 15h18"/></svg>Train</div>
+  <div class="nb" data-tab="nutrition" onclick="go('nutrition',this)"><svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 3c1.7 0 3.2.6 4.4 1.6L5.6 16.4C4.6 15.2 4 13.7 4 12c0-4.4 3.6-8 8-8zm0 14c-1.7 0-3.2-.6-4.4-1.6l10.8-10.8c1 1.2 1.6 2.7 1.6 4.4 0 4.4-3.6 8-8 8z"/></svg>Nutrition</div>
+  <div class="nb" data-tab="recovery" onclick="go('recovery',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Recovery</div>
   <div class="nb" data-tab="photos" onclick="go('photos',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photos</div>
-  <div class="nb" data-tab="you" onclick="go('you',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>You</div>
 </div>
 
 <!-- detail sheet -->
@@ -167,6 +168,7 @@ const TARGET = {protein:162, calories:1700};
 const COLORS={Rings:'#00ff88',Handstand:'#56d3ff',Planche:'#ff8f5e',Bars:'#ff5e6c',Bouldering:'#b6a2ff',Golf:'#54e39a','Freestyle/Hybrid':'#ff9dce','Cardio/Treadmill':'#ffb24d',Treadmill:'#ffb24d',Rest:'#3b403d'};
 const ICONS={Rings:'🤸',Handstand:'🙃',Planche:'💪',Bars:'🏋️',Bouldering:'🧗',Golf:'⛳','Freestyle/Hybrid':'🔀','Cardio/Treadmill':'🏃',Treadmill:'🏃',Rest:'😴'};
 const MEALS=['breakfast','pre-workout','post-workout','lunch','snack','dinner','late-night'];
+const MEAL_COLORS={breakfast:'#ffd43b','pre-workout':'#00d4ff','post-workout':'#00ff88',lunch:'#ff9500',snack:'#b388ff',dinner:'#ff6b6b','late-night':'#888','on-course':'#69db7c','pre-golf':'#69db7c'};
 
 let sb, UID, STATE={dm:[],ss:[],fl:[],bc:[],ph:[]};
 const today = () => new Date().toISOString().slice(0,10);
@@ -259,8 +261,13 @@ function fmt(v,key){if(v==null)return'—';if(key==='volume')return(v/1000).toFi
 // ============ NAV ============
 function go(tab,el){
   document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
-  if(el)document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on')),el.classList.add('on');
-  if(tab==='home')renderHome();else if(tab==='trends')renderTrends();else if(tab==='photos')renderPhotos();else renderYou();
+  if(el){document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
+  if(tab==='home')renderHome();
+  else if(tab==='training')renderTraining();
+  else if(tab==='nutrition')renderNutrition();
+  else if(tab==='recovery')renderRecovery();
+  else if(tab==='photos')renderPhotos();
+  else if(tab==='you')renderYou();
   window.scrollTo(0,0);
 }
 
@@ -361,6 +368,197 @@ function drawDetail(rebuild){
       ${grid}${tgt}<path d="${p.d}L${W-pad} ${H-pad} L${pad} ${H-pad} Z" fill="url(#dg)"/><path d="${p.d}" fill="none" stroke="${c.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>${dots}</svg>
     <div class="stats">${[['Latest',v[v.length-1]],['Best',best],['Avg',av.toFixed(1)]].map(([l,x])=>`<div class="stat"><div class="l">${l}</div><div class="s mono" style="color:${c.color}">${x}<span style="font-size:10px;color:var(--faint)"> ${c.unit}</span></div></div>`).join('')}</div>
     <div>${[...s].reverse().slice(0,10).map(d=>`<div class="li"><span class="mono" style="color:var(--dim)">${d.date}</span><span class="mono" style="color:${c.color}">${d.v} ${c.unit}</span></div>`).join('')}</div>`;
+}
+
+// ============ TRAINING TAB ============
+function renderTraining(view){
+  view=view||sessionStorage.getItem('trainView')||'recent';
+  sessionStorage.setItem('trainView',view);
+  const ss=[...STATE.ss].sort((a,b)=>a.date<b.date?1:-1);
+  const btn=(v,l)=>`<button onclick="renderTraining('${v}')" style="flex:1;background:${v===view?'rgba(0,255,136,.12)':'none'};border:${v===view?'1px solid rgba(0,255,136,.3)':'1px solid #111'};color:${v===view?'var(--accent)':'var(--dim)'};border-radius:8px;padding:7px;font-size:10px;cursor:pointer;font-family:inherit">${l}</button>`;
+  let content='';
+  if(view==='recent'){
+    content=ss.slice(0,30).map(s=>`<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 15px;border-left:3px solid ${COLORS[s.type]||'#333'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:15px">${ICONS[s.type]||'💪'}</span>
+          <div><div style="font-size:13px;font-weight:600;color:${COLORS[s.type]||'#ccc'}">${s.type}</div>
+            <div style="font-size:9px;color:var(--dim)">${s.date}</div></div></div>
+        <div style="text-align:right">
+          ${s.volume?`<div class="mono" style="font-size:13px;color:var(--red)">${s.volume.toLocaleString()}<span style="font-size:9px;color:var(--faint)">kg</span></div>`:''}
+          ${s.calories?`<div class="mono" style="font-size:10px;color:var(--amber)">${s.calories}kcal</div>`:''}</div>
+      </div>
+      ${(s.avg_hr||s.load||s.duration_min)?`<div style="display:flex;gap:10px;font-size:10px;color:var(--faint);margin-top:3px">${s.avg_hr?`<span>❤️ ${s.avg_hr}bpm</span>`:''}${s.load?`<span>Load ${s.load}</span>`:''}${s.duration_min?`<span>${s.duration_min}min</span>`:''}</div>`:''}
+      ${s.notes?`<div style="font-size:10px;color:var(--dim);margin-top:4px;line-height:1.4">${s.notes}</div>`:''}</div>`).join('');
+  } else if(view==='week'){
+    const wm={};ss.forEach(s=>{const d=new Date(s.date+'T12:00:00'),day=d.getDay(),mon=new Date(d);mon.setDate(d.getDate()-(day===0?6:day-1));const wk=mon.toISOString().slice(0,10);
+      if(!wm[wk])wm[wk]={wk,sessions:[],volume:0,calories:0,types:{}};wm[wk].sessions.push(s);wm[wk].volume+=s.volume||0;wm[wk].calories+=s.calories||0;wm[wk].types[s.type]=(wm[wk].types[s.type]||0)+1;});
+    const weeks=Object.values(wm).sort((a,b)=>a.wk<b.wk?1:-1);const maxV=Math.max(...weeks.map(w=>w.volume),1);
+    content=weeks.map(w=>{const d=new Date(w.wk+'T12:00:00'),e=new Date(d);e.setDate(d.getDate()+6);
+      const lbl=`${d.getDate()} ${d.toLocaleString('en',{month:'short'})} – ${e.getDate()} ${e.toLocaleString('en',{month:'short'})}`;const pct=Math.round(w.volume/maxV*100);
+      return `<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><div><div style="font-size:12px;font-weight:600">${lbl}</div><div style="font-size:9px;color:var(--dim)">${w.sessions.length} sessions</div></div>
+          <div style="text-align:right">${w.volume?`<div class="mono" style="font-size:13px;color:var(--red)">${w.volume.toLocaleString()}kg</div>`:''}${w.calories?`<div class="mono" style="font-size:10px;color:var(--amber)">${w.calories.toLocaleString()}kcal</div>`:''}</div></div>
+        ${w.volume?`<div style="background:#111;border-radius:99px;height:4px;margin-bottom:8px"><div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--red),var(--amber));border-radius:99px"></div></div>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:4px">${Object.entries(w.types).map(([t,n])=>`<span style="background:${COLORS[t]||'#222'}22;color:${COLORS[t]||'#666'};border-radius:5px;padding:2px 8px;font-size:9px">${ICONS[t]||''} ${t}${n>1?' ×'+n:''}</span>`).join('')}</div></div>`;}).join('');
+  } else if(view==='month'){
+    const mm={};ss.forEach(s=>{const m=s.date.slice(0,7);if(!mm[m])mm[m]={m,sessions:[],volume:0,calories:0,types:{}};
+      mm[m].sessions.push(s);mm[m].volume+=s.volume||0;mm[m].calories+=s.calories||0;mm[m].types[s.type]=(mm[m].types[s.type]||0)+1;});
+    const months=Object.values(mm).sort((a,b)=>a.m<b.m?1:-1);const maxV=Math.max(...months.map(m=>m.volume),1);
+    content=months.map(m=>{const d=new Date(m.m+'-01T12:00:00');const pct=Math.round(m.volume/maxV*100);
+      return `<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px"><div><div style="font-size:13px;font-weight:600">${d.toLocaleString('en',{month:'long',year:'numeric'})}</div><div style="font-size:9px;color:var(--dim)">${m.sessions.length} sessions</div></div>
+          <div>${m.volume?`<div class="mono" style="font-size:13px;color:var(--red)">${m.volume.toLocaleString()}kg</div>`:''}</div></div>
+        ${m.volume?`<div style="background:#111;border-radius:99px;height:5px;margin-bottom:10px"><div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--red),var(--amber));border-radius:99px"></div></div>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:4px">${Object.entries(m.types).map(([t,n])=>`<span style="background:${COLORS[t]||'#222'}22;color:${COLORS[t]||'#666'};border-radius:5px;padding:2px 8px;font-size:9px">${ICONS[t]||''} ${t}${n>1?' ×'+n:''}</span>`).join('')}</div></div>`;}).join('');
+  } else {
+    const tm={};ss.forEach(s=>{if(!tm[s.type])tm[s.type]={type:s.type,count:0,volume:0,calories:0,last:s.date};
+      tm[s.type].count++;tm[s.type].volume+=s.volume||0;tm[s.type].calories+=s.calories||0;});
+    content=Object.values(tm).sort((a,b)=>b.count-a.count).map(t=>`
+      <div style="background:var(--surface);border:1px solid ${COLORS[t.type]||'#333'}33;border-radius:14px;padding:14px;border-top:2px solid ${COLORS[t.type]||'#333'}">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:22px">${ICONS[t.type]||'💪'}</span>
+          <div><div style="font-size:14px;color:${COLORS[t.type]||'#ccc'};font-weight:600">${t.type}</div><div style="font-size:9px;color:var(--dim)">${t.count} sessions · last ${t.last}</div></div></div>
+        <div style="display:flex;gap:16px;font-size:11px;color:var(--dim)">
+          ${t.volume?`<span>Vol <span class="mono" style="color:var(--red)">${(t.volume/1000).toFixed(1)}t</span></span>`:''}
+          ${t.calories?`<span>Burn <span class="mono" style="color:var(--amber)">${t.calories.toLocaleString()}kcal</span></span>`:''}</div></div>`).join('');
+  }
+  $('view').innerHTML=`<div class="sec" style="margin-top:6px"><h2>Training</h2><div class="rule"></div><span class="tag">${ss.length} sessions</span></div>
+    <div style="display:flex;gap:5px;margin-bottom:14px;background:rgba(255,255,255,.02);border-radius:10px;padding:4px">${btn('recent','Recent')}${btn('week','Week')}${btn('month','Month')}${btn('type','By Type')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${content||'<div class="empty">No sessions logged yet</div>'}</div>`;
+}
+
+// ============ NUTRITION TAB ============
+function renderNutrition(date){
+  date=date||today();
+  const fl=STATE.fl.filter(f=>f.date===date);
+  const tot={protein:0,calories:0,carbs:0,fat:0};
+  fl.forEach(f=>{tot.protein+=+f.protein||0;tot.calories+=+f.calories||0;tot.carbs+=+f.carbs||0;tot.fat+=+f.fat||0;});
+  const isTraining=STATE.ss.some(s=>s.date===date&&s.type&&s.type!=='Rest');
+  const pT=isTraining?162:140,cT=isTraining?1700:1500;
+  const d=new Date(date+'T12:00:00');
+  const prev=new Date(d);prev.setDate(d.getDate()-1);const prevStr=prev.toISOString().slice(0,10);
+  const next=new Date(d);next.setDate(d.getDate()+1);const nextStr=next.toISOString().slice(0,10);
+  const isToday=date===today();
+  $('view').innerHTML=`<div class="sec" style="margin-top:6px"><h2>Nutrition</h2><div class="rule"></div>
+    <button onclick="logFood()" style="background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.2);color:var(--accent);border-radius:8px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:inherit">+ Add</button></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 16px;margin-bottom:14px">
+      <button onclick="renderNutrition('${prevStr}')" style="background:none;border:none;color:var(--dim);font-size:22px;cursor:pointer;padding:0 6px;line-height:1">‹</button>
+      <div style="text-align:center"><div style="font-size:13px;font-weight:600">${isToday?'Today':d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</div><div style="font-size:9px;color:var(--dim)">${date}</div></div>
+      <button onclick="renderNutrition('${nextStr}')" style="background:none;border:none;color:${nextStr>today()?'#1a1a1a':'var(--dim)'};font-size:22px;cursor:pointer;padding:0 6px;line-height:1">›</button>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${[['Protein','protein','g',pT,'#54e39a'],['Calories','calories','kcal',cT,'#ff8f5e'],['Carbs','carbs','g',null,'#56d3ff'],['Fat','fat','g',null,'#b6a2ff']].map(([l,k,u,t,c])=>`<div>
+          <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim)">${l}</div>
+          <div class="mono" style="font-size:19px;color:${c}">${Math.round(tot[k])}<span style="font-size:10px;color:var(--faint)">${t?' / '+t:''}${u}</span></div>
+          ${t?`<div class="bar"><i style="width:${Math.min(100,Math.round(tot[k]/t*100))}%;background:${c}"></i></div>`:''}</div>`).join('')}
+      </div>
+    </div>
+    ${fl.length?fl.map(f=>`<div style="background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 14px;margin-bottom:8px;border-left:3px solid ${MEAL_COLORS[f.meal]||'#333'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MEAL_COLORS[f.meal]||'#555'};font-weight:600">${f.meal}</span>
+        <div style="display:flex;gap:8px;font-size:10px">${f.protein?`<span class="mono" style="color:#54e39a">${f.protein}g P</span>`:''}${f.calories?`<span class="mono" style="color:var(--amber)">${f.calories}kcal</span>`:''}</div></div>
+      <div style="font-size:12px;color:#aaa;line-height:1.4">${f.items||''}</div>
+      ${(f.carbs||f.fat)?`<div style="display:flex;gap:10px;font-size:10px;color:var(--faint);margin-top:3px">${f.carbs?`<span>${f.carbs}g carbs</span>`:''}${f.fat?`<span>${f.fat}g fat</span>`:''}</div>`:''}
+    </div>`).join(''):'<div class="empty">No food logged for this day</div>'}`;
+}
+
+// ============ RECOVERY TAB ============
+function renderRecovery(){
+  const t=today(),dm=STATE.dm.find(d=>d.date===t)||{};
+  const whoopToken=localStorage.getItem('whoop_access_token');
+  const lastSync=localStorage.getItem('whoop_last_sync');
+  const rc=v=>v>=67?'var(--green)':v>=34?'var(--amber)':'var(--red)';
+  const recent=STATE.dm.filter(d=>d.recovery!=null).slice(-14);
+  $('view').innerHTML=`<div class="sec" style="margin-top:6px"><h2>Recovery</h2><div class="rule"></div>
+    ${whoopToken?`<button onclick="syncWhoop()" id="wsync_btn" style="background:rgba(179,136,255,.1);border:1px solid rgba(179,136,255,.25);color:var(--violet);border-radius:8px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:inherit">↻ Sync</button>`:
+    `<button onclick="connectWhoop()" style="background:rgba(179,136,255,.1);border:1px solid rgba(179,136,255,.25);color:var(--violet);border-radius:8px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:inherit">Connect Whoop</button>`}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+      ${[['Recovery','%',dm.recovery,dm.recovery!=null?rc(dm.recovery):'var(--faint)','var(--violet)'],
+         ['HRV','ms',dm.hrv,null,'var(--blue)'],['RHR','bpm',dm.rhr,null,'var(--amber)'],
+         ['Sleep','h',dm.sleep_hours,null,'var(--green)'],['Strain','',dm.strain,null,'var(--red)']].map(([l,u,v,vc,ac])=>`
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 14px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,${ac},transparent)"></div>
+          <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim)">${l}</div>
+          <div class="mono" style="font-size:19px;color:${v!=null?(vc||ac):'var(--faint)'};font-weight:300">${v??'—'}<span style="font-size:9px;color:var(--faint);margin-left:1px">${v!=null?u:''}</span></div>
+        </div>`).join('')}
+    </div>
+    ${recent.length>1?`<div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px">
+      <div class="label" style="margin-bottom:10px">Recovery % · last ${recent.length} days</div>
+      <svg viewBox="0 0 340 90" width="100%" height="90">${buildRecoveryChart(recent)}</svg>
+    </div>`:''}
+    ${whoopToken?`<div style="background:rgba(179,136,255,.04);border:1px solid rgba(179,136,255,.15);border-radius:14px;padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--violet);font-weight:600;margin-bottom:3px">⚡ Whoop connected</div>
+      ${lastSync?`<div style="font-size:10px;color:var(--dim)">Last sync · ${new Date(lastSync).toLocaleString()}</div>`:''}
+      <button onclick="disconnectWhoop()" style="margin-top:10px;background:none;border:1px solid rgba(255,94,108,.25);color:var(--red);border-radius:8px;padding:7px;font-size:11px;cursor:pointer;font-family:inherit;width:100%">Disconnect</button>
+    </div>`:`<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px">
+      <div style="font-size:13px;color:var(--dim);margin-bottom:6px">Connect Whoop to auto-sync</div>
+      <div style="font-size:10px;color:var(--faint);margin-bottom:14px">HRV · Recovery · RHR · Sleep · Strain</div>
+      <button onclick="connectWhoop()" class="btn" style="max-width:none">Connect Whoop</button>
+    </div>`}
+    <div class="label" style="margin-bottom:8px">Daily log</div>
+    ${[...STATE.dm].filter(d=>d.recovery||d.hrv||d.rhr).sort((a,b)=>a.date<b.date?1:-1).slice(-14).reverse().map(d=>`
+      <div style="display:flex;justify-content:space-between;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px">
+        <span class="mono" style="color:var(--dim)">${d.date}</span>
+        <div style="display:flex;gap:8px">
+          ${d.recovery!=null?`<span class="mono" style="color:${rc(d.recovery)}">R:${d.recovery}%</span>`:''}
+          ${d.hrv!=null?`<span class="mono" style="color:var(--blue)">HRV:${d.hrv}</span>`:''}
+          ${d.rhr!=null?`<span class="mono" style="color:var(--amber)">RHR:${d.rhr}</span>`:''}
+          ${d.sleep_hours!=null?`<span class="mono" style="color:var(--green)">${d.sleep_hours}h</span>`:''}
+        </div>
+      </div>`).join('')}`;
+}
+function buildRecoveryChart(data){
+  const W=340,H=90,pad=16,v=data.map(d=>d.recovery);
+  const mn=Math.min(...v)-5,mx=Math.max(...v)+5,r=(mx-mn)||1;
+  const x=i=>pad+(data.length<2?0.5:i/(data.length-1))*(W-pad*2),y=val=>H-pad-(val-mn)/r*(H-pad*2);
+  const rc=v=>v>=67?'#54e39a':v>=34?'#ffb24d':'#ff5e6c';
+  let grid='';for(let i=0;i<=2;i++){const yy=pad+i/2*(H-pad*2);grid+=`<line x1="${pad}" y1="${yy}" x2="${W-pad}" y2="${yy}" stroke="rgba(255,255,255,.05)"/>"`;}
+  const t67=y(67);if(t67>pad&&t67<H-pad)grid+=`<line x1="${pad}" y1="${t67}" x2="${W-pad}" y2="${t67}" stroke="#54e39a" stroke-opacity=".35" stroke-dasharray="3 3"/>`;
+  let d='';data.forEach((p,i)=>d+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.recovery).toFixed(1)+' ');
+  return grid+`<path d="${d}" fill="none" stroke="var(--violet)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`+
+    data.map((p,i)=>`<circle cx="${x(i)}" cy="${y(p.recovery)}" r="3" fill="${rc(p.recovery)}"/>`).join('')+
+    data.map((p,i)=>i%(Math.ceil(data.length/5))===0?`<text x="${x(i)}" y="${H-2}" text-anchor="middle" fill="#444" font-size="7" font-family="Spline Sans Mono">${p.date.slice(5)}</text>`:'').join('');
+}
+
+// ============ WHOOP SYNC ============
+function connectWhoop(){window.location.href=CFG.BACKEND_URL+'/whoop/auth';}
+function disconnectWhoop(){
+  ['whoop_access_token','whoop_refresh_token','whoop_expires_at','whoop_last_sync'].forEach(k=>localStorage.removeItem(k));
+  renderRecovery();
+}
+async function syncWhoop(){
+  const btn=$('wsync_btn');if(btn){btn.textContent='Syncing…';btn.disabled=true;}
+  try{
+    async function wFetch(endpoint,params={}){
+      let tk=localStorage.getItem('whoop_access_token');
+      const call=async t=>{
+        const r=await fetch(CFG.BACKEND_URL+'/whoop/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint,token:t,params})});
+        if(r.status===401){const rr=await fetch(CFG.BACKEND_URL+'/whoop/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:localStorage.getItem('whoop_refresh_token')})});
+          if(!rr.ok){disconnectWhoop();return null;}const tok=await rr.json();
+          if(tok.access_token){localStorage.setItem('whoop_access_token',tok.access_token);if(tok.refresh_token)localStorage.setItem('whoop_refresh_token',tok.refresh_token);return call(tok.access_token);}
+          disconnectWhoop();return null;}
+        return r.ok?r.json():{};};
+      return call(tk);
+    }
+    const [rec,cyc,slp]=await Promise.all([wFetch('/v2/recovery',{limit:'30'}),wFetch('/v2/cycle',{limit:'30'}),wFetch('/v2/activity/sleep',{limit:'30'})]);
+    if(!rec)return;
+    const byd={};
+    (rec.records||[]).forEach(r=>{const d=r.created_at?.slice(0,10);if(!d)return;byd[d]={date:d,recovery:r.score?.recovery_score??null,hrv:r.score?.hrv_rmssd_milli??null,rhr:r.score?.resting_heart_rate??null};});
+    (cyc.records||[]).forEach(c=>{const d=c.start?.slice(0,10);if(!d)return;const nd=new Date(new Date(d).getTime()+86400000).toISOString().slice(0,10);const row=byd[nd]||byd[d];if(row)row.strain=c.score?.strain??null;});
+    (slp.records||[]).filter(s=>!s.nap).forEach(s=>{const d=s.start?.slice(0,10);if(!d)return;const nd=new Date(new Date(d).getTime()+86400000).toISOString().slice(0,10);const row=byd[nd]||byd[d];
+      if(row)row.sleep_hours=s.score?.stage_summary?.total_in_bed_time_milli?Math.round(s.score.stage_summary.total_in_bed_time_milli/360000)/10:null;});
+    const rows=Object.values(byd).filter(r=>r.recovery||r.hrv||r.rhr).map(r=>({user_id:UID,date:r.date,hrv:r.hrv?Math.round(r.hrv):null,rhr:r.rhr??null,recovery:r.recovery??null,sleep_hours:r.sleep_hours??null,strain:r.strain??null,source:'whoop'}));
+    if(rows.length){const {error}=await sb.from('daily_metrics').upsert(rows,{onConflict:'user_id,date'});if(error)throw new Error(error.message);}
+    localStorage.setItem('whoop_last_sync',new Date().toISOString());
+    await loadAll();renderRecovery();
+  }catch(e){alert('Sync failed: '+e.message);if(btn){btn.textContent='↻ Sync';btn.disabled=false;}}
+}
+let _whoopJustConnected=false;
+function handleWhoopCallback(){
+  if(!location.hash.includes('access_token'))return;
+  const p=new URLSearchParams(location.hash.slice(1));const t=p.get('access_token'),r=p.get('refresh_token');
+  if(t){localStorage.setItem('whoop_access_token',t);if(r)localStorage.setItem('whoop_refresh_token',r);history.replaceState(null,'',location.pathname);_whoopJustConnected=true;}
 }
 
 // ============ LOGGING ============
@@ -480,6 +678,20 @@ function renderYou(){
 }
 
 boot();
+
+async function enter(){
+  $('auth').style.display='none'; $('app').style.display='block'; $('nav').style.display='flex'; $('fab').style.display='block';
+  const d=new Date(); $('hdr_date').textContent=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+  await loadAll();
+  if(_whoopJustConnected){_whoopJustConnected=false;setTimeout(syncWhoop,400);}
+  go('home');
+}
+async function boot(){
+  if(!initClient()) return;
+  handleWhoopCallback();
+  const {data:{session}} = await sb.auth.getSession();
+  if(session){ UID=session.user.id; await enter(); }
+}
 </script>
 </body>
 </html>
